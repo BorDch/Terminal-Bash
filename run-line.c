@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/time.h>
+#include <sys/wait.h>
 
 // Function for entering a string with character-by-character input
 char* getInputString() {
@@ -73,23 +73,50 @@ void splitString(char* inputString, char*** words, int* wordCount) {
     }
 }
 
+// A function that takes array of words and executes the entered command(program)
+void progexec(char** array_args) {
+	pid_t pid = fork();
+	
+	if (pid == 0) {
+		if (execvp(array_args[0], array_args) == -1) {
+			perror("execvp error");
+			exit(1);
+		}
+	} else if (pid > 0) {
+		int status;
+		wait(&status);
+		if (WIFEXITED(status)) {
+			printf("Child process exited with status %d\n", WEXITSTATUS(status));
+		}
+	} else {
+		perror("fork error");
+		exit(1);
+	}
+}
+
 
 int main(int argc, char** argv) {
-    char* inputString = getInputString();
-    char** words;
-    int wordCount;
+    
+    while(1) {
+    
+		char* inputString = getInputString();
+		char** words;
+		int wordCount;
 
-    splitString(inputString, &words, &wordCount);
+    	splitString(inputString, &words, &wordCount);
 
-/*  Words output
-
-    for (int i = 0;  i < wordCount; i++) {
-        printf("Word %d: %s\n", i + 1, words[i]);
-        free(words[i]); // Free memory for word
-    }
-*/
-    free(words); // Free memory for array of pointers
-    free(inputString); // Free memory for input string
-
+		if (wordCount > 0) {
+			progexec(words);
+		}
+		
+		for (int i = 0; i < wordCount; i++) {
+			free(words[i]);
+		}
+	
+		free(words); // Free memory for array of pointers
+		free(inputString); // Free memory for input string
+	
+	}
+    
     return 0;
 }
