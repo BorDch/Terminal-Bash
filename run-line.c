@@ -3,6 +3,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <fcntl.h>
+#include "bash-functions.h" // my own library with written commands for bash
+
 
 // Function for entering a string with character-by-character input
 char* getInputString() {
@@ -103,20 +106,46 @@ int main(int argc, char** argv) {
 		char** words;
 		int wordCount;
 
-    	splitString(inputString, &words, &wordCount);
+		splitString(inputString, &words, &wordCount);
 
-		if (wordCount > 0) {
-			progexec(words);
+		int doubleStickFlag = 0; // flag for checking on '||'
+		int doubleAmpersandFlag = 0; // flag for checking on '&&'
+		
+		for (int i = 0; i < wordCount; i++) {
+			if (strcmp(words[i], "||") == 1) {
+				doubleStickFlag = 1;
+				break;
+			}
 		}
 		
 		for (int i = 0; i < wordCount; i++) {
+			if (strcmp(words[i], "&&") == 1) {
+				doubleAmpersandFlag = 1;
+				break;
+			}
+		}
+		
+		if (doubleStickFlag) {
+			doubleStickExec(&words);
+		
+		} else if (doubleAmpersandFlag) {
+			doubleAmperndExec(&words);
+		
+		} else {
+			
+			if (wordCount > 0) {
+				progexec(words);
+			}
+		}
+
+		for (int i = 0; i < wordCount; i++) {
 			free(words[i]);
 		}
-	
+
 		free(words); // Free memory for array of pointers
 		free(inputString); // Free memory for input string
-	
+
 	}
-    
+
     return 0;
 }
