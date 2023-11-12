@@ -281,47 +281,6 @@ void executeOrOperator(struct Command* cmd) {
     }
 }
 
-
-/*
-// Function for operator '&&'
-void executeAndOperator(struct Command* cmd) {
-	int status;
-	pid_t pid = fork();
-	if (pid == -1) {
-		perror("fork");
-		exit(1);
-	} else if (pid == 0) {
-       	execvp(cmd->words[0], cmd->words);
-            perror("execvp");
-            exit(1);
-        } else {
-            wait(&status);
-            if (status != 0) {
-                return; 
-            }
-        }
-} 
-
-// Function for operator '||'
-void executeOrOperator(struct Command* cmd) {
-	int status;
-	
-	pid_t pid = fork();
-	if (pid == -1) {
-		perror("fork");
-		exit(1);
-	} else if (pid == 0) {
-		execvp(cmd->words[0], cmd->words);
-		perror("execvp");
-		exit(1);
-	} else {
-		wait(&status);
-		if (status == 0) {
-			return;
-		}
-	}
-} */
-
 // Pipe Function
 void executePipeline(struct Command* cmd) {
     int fd[2];
@@ -423,7 +382,7 @@ void executeCommand(struct Command* cmd, int firstOperatorFlag) {
 
 // pwd: path
 void pwd() {
-    char path[1024]; // Создаем массив для хранения пути
+    char path[1024]; // Array for path
     if (getcwd(path, sizeof(path)) != NULL) {
         printf("\033[1;34m%s\033[0m$ ", path);
     } else {
