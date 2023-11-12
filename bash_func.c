@@ -389,3 +389,21 @@ void pwd() {
         perror("getcwd");
     }
 }
+
+// cd: change directory
+void cd(const char* path) {
+	if (path == NULL) {
+		const char* home = "/home";
+		if (chdir(home) != 0) {
+			perror("bash: cd");
+		}
+	} else if (path == "..") {
+		if (chdir(path) != 0) {
+			perror("bash: cd");
+		}
+	} else {
+		if (chdir(path) != 0) {
+			perror("bash: cd");
+		}
+	}
+}

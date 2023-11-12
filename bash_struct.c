@@ -30,9 +30,16 @@ int main() {
 	        	free(temp);
 	    	}
 	    	break;
-	    } 
-	    
-	    executeCommand(commands, firstOperatorFlag);
+	    } else if (strcmp(commands->words[0], "cd") == 0) {
+	    	if (wordCount == 1) {
+	    		cd(NULL);
+	    	} else {
+	    		commands = commands->next;
+	    		cd(commands->words[0]);
+	    	}
+	    } else {
+	    	executeCommand(commands, firstOperatorFlag);
+	    }
 	     
 	    free(input);
 	    free(words);
