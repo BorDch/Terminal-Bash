@@ -407,3 +407,22 @@ void cd(const char* path) {
 		}
 	}
 }
+
+// echo: print on screen
+void echo(struct Command* cmd) {
+	while (cmd != NULL && cmd->words[0] != NULL) {
+		printf("%s ", cmd->words[0]);
+		cmd = cmd->next;
+	}
+	printf("\n");
+}
+
+// help: manual page with bash commands
+void help() {
+	printf("Available commands:\n*****\n");
+	printf("pwd [-LP] - prints the absolute path to the screen\n");
+	printf("cd [dir] - changes directory\n");
+	printf("exit - closes the terminal\n");
+	printf("clear - makes the terminal window empty\n");
+	printf("echo [arg ...] - prints anything to the screen\n");
+}

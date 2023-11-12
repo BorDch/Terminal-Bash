@@ -37,6 +37,11 @@ int main() {
 	    		commands = commands->next;
 	    		cd(commands->words[0]);
 	    	}
+	    } else if (strcmp(commands->words[0], "echo") == 0) {
+	    	commands = commands->next;
+	    	echo(commands);
+	    } else if (strcmp(commands->words[0], "help") == 0) {
+	    	help();
 	    } else {
 	    	executeCommand(commands, firstOperatorFlag);
 	    }

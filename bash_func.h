@@ -20,3 +20,5 @@ void executePipeline(struct Command* cmd);
 void executeSeqOperator(struct Command* cmd);
 void executeCommand(struct Command* cmd, int firstOperatorFlag);
 void pwd();
+void echo(struct Command* cmd);
+void help();
