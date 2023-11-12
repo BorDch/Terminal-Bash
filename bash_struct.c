@@ -15,13 +15,10 @@ int main() {
 	    int wordCount;
 	    char** words = splitStringWithoutSpaces(input, &wordCount);
 
-	    int firstOperatorFlag = 0; // Переменная для хранения флага первого оператора
+	    int firstOperatorFlag = 0;
 	    struct Command* commands = parseCommandsFromWords(words, wordCount, &firstOperatorFlag);
 
-	    // Выводим флаг первого оператора
 	    //printf("First operator's flag: %d\n", firstOperatorFlag);
-	    
-	    
 	    
 	    if (strcmp(commands->words[0], "exit") == 0) {
 	    	free(input);
