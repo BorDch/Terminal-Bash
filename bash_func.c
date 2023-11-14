@@ -151,7 +151,13 @@ struct Command* parseCommandsFromWords(char** words, int wordCount, int* firstOp
         } else if (strcmp(words[i], ">") == 0) {
        	    *firstOperatorFlag = 6;
             break;
-       	}
+       	} else if (strcmp(words[i], ">>") == 0) {
+       	    *firstOperatorFlag = 7;
+            break;
+        } else if (strcmp(words[i], "<") == 0) {
+       	    *firstOperatorFlag = 8;
+            break;
+        }
     }
 
     for (int i = 0; i < wordCount; i++) {
@@ -186,6 +192,12 @@ struct Command* parseCommandsFromWords(char** words, int wordCount, int* firstOp
         } else if (strcmp(words[i], ">") == 0) {
         	cmd->flag = 6;
         	currentFlag = 6;
+        } else if (strcmp(words[i], ">>") == 0) {
+        	cmd->flag = 7;
+        	currentFlag = 7;
+        } else if (strcmp(words[i], "<") == 0) {
+        	cmd->flag = 8;
+        	currentFlag = 8;
         } else {
             int wordLength = strlen(words[i]);
             cmd->words = (char**)malloc(2 * sizeof(char*));
@@ -415,6 +427,102 @@ void outputInFile(struct Command* cmd, const char* filename) {
     }
 }
 
+// operator '>>'
+void appendToFile(struct Command* cmd, const char* filename) {
+    int fd[2];
+    pipe(fd);
+    
+   
+    pid_t pid = fork();
+
+    if (pid == -1) {
+        perror("fork");
+        exit(EXIT_FAILURE);
+    } else if (pid == 0) {
+        close(fd[0]);
+
+        dup2(fd[1], STDOUT_FILENO);
+
+        execvp(cmd->words[0], cmd->words); 
+
+        close(fd[1]); 
+        exit(EXIT_SUCCESS);
+    } else { 
+        close(fd[1]); 
+
+        FILE *file = fopen(filename, "a");
+        if (file == NULL) {
+            perror("fopen");
+            exit(EXIT_FAILURE);
+        }
+
+        char buffer[1024];
+        int bytes_read;
+        
+        while ((bytes_read = read(fd[0], buffer, sizeof(buffer))) > 0) {
+            for (int i = 0; i < bytes_read; i++) {
+                fputc(buffer[i], file);
+            }
+        }
+
+        fclose(file);
+        close(fd[0]);
+        
+        wait(NULL);
+    }
+}
+
+void cat(const char* filename);
+
+// operator '<'
+void inputFromFile(struct Command* cmd, const char* filename) {
+    if (strcmp(cmd->words[0], "cat") == 0) {
+        cat(filename);
+    } else {
+        int fd[2];
+        pipe(fd);
+
+        pid_t pid = fork();
+
+        if (pid == -1) {
+            perror("fork");
+            exit(EXIT_FAILURE);
+        } else if (pid == 0) {
+
+            close(fd[1]);  
+            
+            dup2(fd[0], STDIN_FILENO);
+            
+            execvp(cmd->words[0], cmd->words);
+
+            close(fd[0]);
+
+            perror("execvp");
+            exit(EXIT_FAILURE);
+        } else {
+            close(fd[0]);
+
+            FILE *file = fopen(filename, "r");
+            if (file == NULL) {
+                perror("fopen");
+                exit(EXIT_FAILURE);
+            }
+
+            char buffer[1024];
+            size_t bytesRead;
+
+            while ((bytesRead = fread(buffer, 1, sizeof(buffer), file)) > 0) {
+                write(fd[1], buffer, bytesRead);
+            }
+
+            fclose(file);
+            close(fd[1]);
+
+            wait(NULL);
+        }
+    }
+}
+
 
 void executeCommand(struct Command* cmd, int firstOperatorFlag) {
     if (cmd == NULL) {
@@ -424,19 +532,34 @@ void executeCommand(struct Command* cmd, int firstOperatorFlag) {
     // Check the command's flag and execute accordingly
     if (firstOperatorFlag == 1 || cmd->flag == 1) { // Pipe ('|')
         executePipeline(cmd);
+        
     } else if (firstOperatorFlag == 2 || cmd->flag == 2) { // Background ('&')
-    	executeInBackground(cmd);		
+    	executeInBackground(cmd);
+    			
     } else if (firstOperatorFlag == 3 || cmd->flag == 3) { // Logical OR ('||')
         executeOrOperator(cmd);
+        
     } else if (firstOperatorFlag == 4 || cmd->flag == 4) { // Logical AND ('&&')
         executeAndOperator(cmd);
+        
     } else if (firstOperatorFlag == 5 || cmd->flag == 5) { // Sequential execution (';')
         executeSeqOperator(cmd);
+        
     } else if (firstOperatorFlag == 6 || cmd->flag == 6) { // redirect output in file '>'
     	struct Command* next_cmd = cmd->next;
     	next_cmd->filename = next_cmd->words[0];
-    	//printf("%s\n", next_cmd->filename);
     	outputInFile(cmd, next_cmd->filename);
+    	
+    } else if (firstOperatorFlag == 7 || cmd->flag == 7) { // append data to the end of the file '>>'
+    	struct Command* next_cmd = cmd->next; 
+    	next_cmd->filename = next_cmd->words[0];
+    	appendToFile(cmd, next_cmd->filename);
+    	
+    } else if (firstOperatorFlag == 8 || cmd->flag == 8) { // output of file contents to the stream '<'
+    	struct Command* next_cmd = cmd->next; 
+    	next_cmd->filename = next_cmd->words[0];
+    	inputFromFile(cmd, next_cmd->filename);
+    	 
     } else { // Default, no operator
         pid_t pid = fork();
         if (pid == -1) {

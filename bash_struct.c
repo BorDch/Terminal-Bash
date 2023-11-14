@@ -8,7 +8,7 @@
 
 int main() {	     
      while(1) {	    
-     	    pwd();
+     	pwd();
 	    char* input = characterInput();
 
 	    int wordCount;
@@ -19,7 +19,7 @@ int main() {
 
 	    //printf("First operator's flag: %d\n", firstOperatorFlag);
 	    
-	    if (strcmp(commands->words[0], "exit") == 0) {
+	   	if (strcmp(commands->words[0], "exit") == 0) {
 	    	free(input);
 	    	free(words);
 	    	struct Command* cmd = commands;
@@ -54,7 +54,7 @@ int main() {
 	    			touch(temp->filename);
 	    		}
 	    	} while (temp != NULL); 
-	    } else if(strcmp(commands->words[0], "cat") == 0) {
+	    } else if(strcmp(commands->words[0], "cat") == 0 && commands->flag == 0 && firstOperatorFlag == 0) {
 	    	struct Command* temp = commands;
 			temp = temp->next;
 
@@ -68,8 +68,8 @@ int main() {
 				}
 			}
 		} else {
-	    	executeCommand(commands, firstOperatorFlag);
-	    }
+			executeCommand(commands, firstOperatorFlag);
+		} 
 	     
 	    free(input);
 	    free(words);

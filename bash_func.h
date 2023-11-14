@@ -20,6 +20,9 @@ void executePipeline(struct Command* cmd);
 void executeSeqOperator(struct Command* cmd);
 void executeInBackground(struct Command* cmd); 
 void outputInFile(struct Command* cmd, const char* filename);
+void appendToFile(struct Command* cmd, const char* filename);
+void inputFromFile(struct Command* cmd, const char* filename); 
+
 void executeCommand(struct Command* cmd, int firstOperatorFlag);
 void pwd();
 void echo(struct Command* cmd);
