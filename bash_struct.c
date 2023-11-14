@@ -6,9 +6,8 @@
 #include <unistd.h>
 #include "bash_func.h"
 
-
-int main() {
-     while(1) {
+int main() {	     
+     while(1) {	    
      	    pwd();
 	    char* input = characterInput();
 
@@ -55,7 +54,20 @@ int main() {
 	    			touch(temp->filename);
 	    		}
 	    	} while (temp != NULL); 
-	    } else {
+	    } else if(strcmp(commands->words[0], "cat") == 0) {
+	    	struct Command* temp = commands;
+			temp = temp->next;
+
+			if (temp == NULL) {
+				cat(NULL);
+			} else {
+				while (temp != NULL) {
+					temp->filename = temp->words[0];
+					cat(temp->filename);
+					temp = temp->next;
+				}
+			}
+		} else {
 	    	executeCommand(commands, firstOperatorFlag);
 	    }
 	     
@@ -63,11 +75,12 @@ int main() {
 	    free(words);
 	    struct Command* cmd = commands;
 	    while (cmd != NULL) {
-		struct Command* temp = cmd;
+		struct Command* tmp = cmd;
 		cmd = cmd->next;
-		free(temp);
+		free(tmp);
 	    }
     }
 
     return 0;
 }
+

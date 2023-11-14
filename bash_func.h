@@ -27,3 +27,4 @@ void help();
 int isFile(const char* filename);
 void removeFile(struct Command* cmd);
 void touch(const char* filename);
+void cat(const char* filename);

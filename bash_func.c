@@ -4,6 +4,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <signal.h>
 
 // Structure Command
 struct Command {
@@ -498,6 +499,7 @@ void help() {
 	printf("echo [arg ...] - prints anything to the screen\n");
 	printf("rm [filename ...] - remove a file or files\n");
 	printf("touch [filename ...] - create a file or files\n");
+	printf("cat [filename ...] - prints the contents of a file or files\n");
 }
 
 // check the existence of the file
@@ -531,3 +533,41 @@ void touch(const char* filename) {
 		fclose(file);
 	} 
 }
+
+// for function cat: hanlder for ignoring CTRL-C
+int interrupt = 0;
+
+void handler_interrupt(int sig) {
+	interrupt = 1;
+}
+
+// cat: content of the file
+void cat(const char* filename) {
+	if (filename == NULL) {
+		signal(SIGINT, handler_interrupt);
+		
+		int c;
+		while (!interrupt) {
+			c = getchar();
+			if (c == EOF) break;
+			else putchar(c);
+		}
+		interrupt = 0;
+		return;	
+	} else {
+	
+		FILE* file = fopen(filename, "r");
+		if (!file) {
+			perror("cat");
+			return;
+		}
+		
+		int c;
+		while ((c = fgetc(file)) != EOF) {
+			putchar(c);
+		}
+		
+		fclose(file);
+	}
+}
+
