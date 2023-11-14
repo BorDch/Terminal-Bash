@@ -42,6 +42,19 @@ int main() {
 	    	echo(commands);
 	    } else if (strcmp(commands->words[0], "help") == 0) {
 	    	help();
+	    } else if (strcmp(commands->words[0], "rm") == 0) {
+	    	commands = commands->next;
+	    	removeFile(commands);
+	    } else if (strcmp(commands->words[0], "touch") == 0) {
+	    	struct Command* temp = commands;
+	    	
+	    	do {
+	    		temp = temp->next;
+	    		if (temp != NULL) {
+	    			temp->filename = temp->words[0];
+	    			touch(temp->filename);
+	    		}
+	    	} while (temp != NULL); 
 	    } else {
 	    	executeCommand(commands, firstOperatorFlag);
 	    }

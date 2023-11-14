@@ -10,6 +10,7 @@ struct Command {
     char** words;         // Command words
     int flag;             // Operator flag (0 - default, 1 - '|', 2 - '&', 3 - '||', 4 - '&&', .....)
     struct Command* next; // Next Command
+    char* filename;       // for several functions
 };
 
 
@@ -146,7 +147,10 @@ struct Command* parseCommandsFromWords(char** words, int wordCount, int* firstOp
         } else if (strcmp(words[i], ";") == 0) {
             *firstOperatorFlag = 5;
             break;
-        }
+        } else if (strcmp(words[i], ">") == 0) {
+       	    *firstOperatorFlag = 6;
+            break;
+       	}
     }
 
     for (int i = 0; i < wordCount; i++) {
@@ -176,8 +180,11 @@ struct Command* parseCommandsFromWords(char** words, int wordCount, int* firstOp
             cmd->flag = 4;
             currentFlag = 4;
         } else if (strcmp(words[i], ";") == 0) {
-            cmd->flag == 5;
-            currentFlag == 5;
+            cmd->flag = 5;
+            currentFlag = 5;
+        } else if (strcmp(words[i], ">") == 0) {
+        	cmd->flag = 6;
+        	currentFlag = 6;
         } else {
             int wordLength = strlen(words[i]);
             cmd->words = (char**)malloc(2 * sizeof(char*));
@@ -348,6 +355,65 @@ void executeSeqOperator(struct Command* cmd) {
 }
 
 
+void executeInBackground(struct Command* cmd) {
+	pid_t pid = fork();
+	if (pid == -1) {
+		perror("fork");
+		exit(1);
+	} else if (pid == 0) {
+		execvp(cmd->words[0], cmd->words);
+		perror("execvp");
+		exit(1);
+	} else {
+		printf("[%d]+\n", pid);
+	}
+}
+
+// operator '>'
+void outputInFile(struct Command* cmd, const char* filename) {
+    int fd[2];
+    pipe(fd);
+    
+   
+    pid_t pid = fork();
+
+    if (pid == -1) {
+        perror("fork");
+        exit(EXIT_FAILURE);
+    } else if (pid == 0) {
+        close(fd[0]);
+
+        dup2(fd[1], STDOUT_FILENO);
+
+        execvp(cmd->words[0], cmd->words); 
+
+        close(fd[1]); 
+        exit(EXIT_SUCCESS);
+    } else { 
+        close(fd[1]); 
+
+        FILE *file = fopen(filename, "w");
+        if (file == NULL) {
+            perror("fopen");
+            exit(EXIT_FAILURE);
+        }
+
+        char buffer[1024];
+        int bytes_read;
+
+        while ((bytes_read = read(fd[0], buffer, sizeof(buffer))) > 0) {
+            for (int i = 0; i < bytes_read; i++) {
+                fputc(buffer[i], file);
+            }
+        }
+
+        fclose(file);
+        close(fd[0]);
+        
+        wait(NULL);
+    }
+}
+
 
 void executeCommand(struct Command* cmd, int firstOperatorFlag) {
     if (cmd == NULL) {
@@ -358,13 +424,18 @@ void executeCommand(struct Command* cmd, int firstOperatorFlag) {
     if (firstOperatorFlag == 1 || cmd->flag == 1) { // Pipe ('|')
         executePipeline(cmd);
     } else if (firstOperatorFlag == 2 || cmd->flag == 2) { // Background ('&')
-    
+    	executeInBackground(cmd);		
     } else if (firstOperatorFlag == 3 || cmd->flag == 3) { // Logical OR ('||')
         executeOrOperator(cmd);
     } else if (firstOperatorFlag == 4 || cmd->flag == 4) { // Logical AND ('&&')
         executeAndOperator(cmd);
     } else if (firstOperatorFlag == 5 || cmd->flag == 5) { // Sequential execution (';')
         executeSeqOperator(cmd);
+    } else if (firstOperatorFlag == 6 || cmd->flag == 6) { // redirect output in file '>'
+    	struct Command* next_cmd = cmd->next;
+    	next_cmd->filename = next_cmd->words[0];
+    	//printf("%s\n", next_cmd->filename);
+    	outputInFile(cmd, next_cmd->filename);
     } else { // Default, no operator
         pid_t pid = fork();
         if (pid == -1) {
@@ -425,4 +496,38 @@ void help() {
 	printf("exit - closes the terminal\n");
 	printf("clear - makes the terminal window empty\n");
 	printf("echo [arg ...] - prints anything to the screen\n");
+	printf("rm [filename ...] - remove a file or files\n");
+	printf("touch [filename ...] - create a file or files\n");
+}
+
+// check the existence of the file
+int isFile(const char* filename) {
+	FILE* file = fopen(filename, "r");
+	
+	if (file) {
+		fclose(file);
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
+// rm: remove a file
+void removeFile(struct Command* cmd) {
+	while(cmd != NULL) {
+		if (isFile(cmd->words[0])) {
+			remove(cmd->words[0]); 
+		} else {
+			perror("rm");
+		}
+		cmd = cmd->next;
+	}
+}
+
+// touch: create a new file
+void touch(const char* filename) {
+	FILE* file = fopen(filename, "a");
+	if (file) {
+		fclose(file);
+	} 
 }
