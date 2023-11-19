@@ -7,7 +7,11 @@
 #include "bash_func.h"
 
 int main() {	     
+	struct Job* jobList = NULL;
+	
      while(1) {	    
+     	updateJobList(&jobList);
+     
      	pwd();
 	    char* input = characterInput();
 
@@ -67,8 +71,10 @@ int main() {
 					temp = temp->next;
 				}
 			}
+		} else if (strcmp(commands->words[0], "jobs") == 0) { 
+			printJobs(jobList);
 		} else {
-			executeCommand(commands, firstOperatorFlag);
+			executeCommand(commands, firstOperatorFlag, &jobList);
 		} 
 	     
 	    free(input);
