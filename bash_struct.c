@@ -4,16 +4,37 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <signal.h>
 #include "bash_func.h"
+
+void ignore_handler(int sig) {
+	
+}
 
 int main() {	     
 	struct Job* jobList = NULL;
+	struct History* historyList = NULL;
 	
+	signal(SIGINT, ignore_handler);
      while(1) {	    
      	updateJobList(&jobList);
-     
+     	
      	pwd();
 	    char* input = characterInput();
+	    addToHistory(&historyList, input);
+	    
+	    if (input[0] == '\0') { // If press Enter, skip and continue new iteration
+	    	free(input);
+	    	continue;
+	    } else if (strcmp(input, "history") == 0) {
+	    	printHistory(historyList);
+	    	free(input);
+	    	continue;
+	    } else if (strcmp(input, "history -c") == 0) {
+	    	clearHistory(&historyList);
+	    	free(input);
+	    	continue;
+	    }
 
 	    int wordCount;
 	    char** words = splitStringWithoutSpaces(input, &wordCount);
@@ -73,6 +94,9 @@ int main() {
 			}
 		} else if (strcmp(commands->words[0], "jobs") == 0) { 
 			printJobs(jobList);
+		} else if (strcmp(commands->words[0], "fg") == 0) {
+			if (commands->next != NULL) bringToForeground(&jobList, commands->next->words[0]); 
+			else bringToForeground(&jobList, NULL);
 		} else {
 			executeCommand(commands, firstOperatorFlag, &jobList);
 		} 
@@ -87,6 +111,7 @@ int main() {
 	    }
     }
 
+    freeHistory(historyList);
     return 0;
 }
 

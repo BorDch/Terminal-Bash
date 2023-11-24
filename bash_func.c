@@ -5,6 +5,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <signal.h>
+#include "jobs.c"
+
 
 // Structure Command
 struct Command {
@@ -15,128 +17,7 @@ struct Command {
 };
 
 
-// Structure Job
-struct Job {
-    pid_t pid;       // Process ID
-    char* command;   // Command string
-    int state;       // Process state (0 - running, 1 - stopped, 2 - killed)
-    struct Job* next; // Next Job
-};
-
-// Function for creating a new Job
-struct Job* createJob(pid_t pid, const char* command, int state) {
-    struct Job* job = (struct Job*)malloc(sizeof(struct Job));
-    if (job == NULL) {
-        perror("Memory allocation");
-        exit(1);
-    }
-
-    job->pid = pid;
-    job->command = strdup(command);
-    job->state = state;
-    job->next = NULL;
-
-    return job;
-}
-
-// Function for adding a Job to the list
-void addJob(struct Job** jobList, struct Job* newJob) {
-    if (*jobList == NULL) {
-        *jobList = newJob;
-    } else {
-        struct Job* current = *jobList;
-        while (current->next != NULL) {
-            current = current->next;
-        }
-        current->next = newJob;
-    }
-}
-
-// get the number of tasks in the JobList
-int getJobCount(struct Job* jobList) {
-    int count = 0;
-    struct Job* current = jobList;
-
-    while (current != NULL) {
-        count++;
-        current = current->next;
-    }
-
-    return count;
-}
-
-// Function for removing a Job from the list
-void removeFromJobList(struct Job** jobList, pid_t pid) {
-    struct Job* current = *jobList;
-    struct Job* prev = NULL;
-
-    while (current != NULL) {
-        if (current->pid == pid) {
-            if (prev == NULL) {
-                *jobList = current->next;
-            } else {
-                prev->next = current->next;
-            }
-
-            free(current);
-            break;
-        }
-
-        prev = current;
-        current = current->next;
-    }
-}
-
-// Function for printing all Jobs in the list
-void printJobsList(struct Job* jobList) {
-    struct Job* current = jobList;
-    while (current != NULL) {
-        printf("[%d] %s\t%s\n", current->pid, (current->state == 0 ? "Running" : "Stopped"), current->command);
-        current = current->next;
-    }
-}
-
-// Function for printing all Jobs
-void printJobs(struct Job* jobList) {
-    if (jobList == NULL) {
-        printf("No background jobs.\n");
-    } else {
-        printJobsList(jobList);
-    }
-}
-
-// Check if a background job has terminated and update the job list
-void updateJobList(struct Job** jobList) {
-    struct Job* current = *jobList;
-    struct Job* prev = NULL;
-
-    while (current != NULL) {
-        pid_t result = waitpid(current->pid, NULL, WNOHANG);
-
-        if (result == -1) {
-            perror("waitpid");
-            exit(1);
-        } else if (result == 0) {
-            // Process is still running
-            prev = current;
-            current = current->next;
-        } else {
-            // Process has terminated
-            printf("[%d]+  Done\t\t%s\n", getJobCount(*jobList), current->command);
-
-            if (prev == NULL) {
-                // Current job is the first in the list
-                removeFromJobList(jobList, current->pid);
-                current = *jobList;
-            } else {
-                // Current job is not the first in the list
-                prev->next = current->next;
-                free(current);
-                current = prev->next;
-            }
-        }
-    }
-}
+// Parser Section 
 
 
 // Function for string input
@@ -352,6 +233,8 @@ struct Command* parseCommandsFromWords(char** words, int wordCount, int* firstOp
     return head;
 }
 
+
+// To check the operation of the parser
 void printAllWords(struct Command* commands) {
     struct Command* cmd = commands;
 
@@ -380,6 +263,8 @@ void printAllWords(struct Command* commands) {
     }
 }
 
+
+// Other Bash functions
 
 // Function for operator '&&'
 void executeAndOperator(struct Command* cmd) {
@@ -499,13 +384,16 @@ void executeInBackground(struct Command* cmd, struct Job** jobList) {
         exit(1);
     } else if (pid == 0) {
         // Child process
+        setpgid(0, 0);
         execvp(cmd->words[0], cmd->words);
         perror("execvp");
         exit(1);
     } else {
         // Parent process
+        
+        pid_t pgid = getpgid(pid);
         printf("Process wth id [%d]\n", pid);
-        addJob(jobList, createJob(pid, cmd->words[0], 0)); // Adding the job to the list
+        addJob(jobList, createJob(pid, pgid, cmd->words[0], 0)); // Adding the job to the list
     }
 }
 
@@ -754,6 +642,7 @@ void help() {
 	printf("rm [filename ...] - remove a file or files\n");
 	printf("touch [filename ...] - create a file or files\n");
 	printf("cat [filename ...] - prints the contents of a file or files\n");
+	printf("jobs [args] - Lists the active jobs. Deafault: the status of all active jobs is displayed.\n");
 }
 
 // check the existence of the file
@@ -798,7 +687,7 @@ void handler_interrupt(int sig) {
 // cat: content of the file
 void cat(const char* filename) {
 	if (filename == NULL) {
-		signal(SIGINT, handler_interrupt);
+		//signal(SIGINT, handler_interrupt);
 		
 		int c;
 		while (!interrupt) {
