@@ -105,7 +105,8 @@ void updateJobList(struct Job** jobList) {
     struct Job* prev = NULL;
 
     while (current != NULL) {
-        pid_t result = waitpid(current->pid, NULL, WNOHANG);
+    	int status;
+        pid_t result = waitpid(current->pid, NULL, WNOHANG | WUNTRACED);
 
         if (result == -1) {
             perror("waitpid");
@@ -115,9 +116,13 @@ void updateJobList(struct Job** jobList) {
             prev = current;
             current = current->next;
         } else {
-            // Process has terminated
-            printf("[%d]+  Done\t\t%s\n", getJobCount(*jobList), current->command);
-
+        	if (WIFEXITED(status)) {
+        		// Process has terminated
+			printf("[%d]+  Done\t\t%s\n", getJobCount(*jobList), current->command);
+		} else if (WIFSTOPPED(status)) {
+			printf("[%d]+  Stopped\t\t%s\n", getJobCount(*jobList), current->command);
+			}
+			
             if (prev == NULL) {
                 // Current job is the first in the list
                 removeFromJobList(jobList, current->pid);
@@ -200,4 +205,3 @@ void bringToForeground(struct Job** jobList, char* identifier) {
         printf("Job with identifier %s not found.\n", identifier);
     }
 }
-

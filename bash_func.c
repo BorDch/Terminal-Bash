@@ -397,6 +397,43 @@ void executeInBackground(struct Command* cmd, struct Job** jobList) {
     }
 }
 
+
+void signalHandler(int sig) {
+
+}
+
+void executeDefault(struct Command* cmd, struct Job** jobList) {
+    signal(SIGTSTP, signalHandler);
+
+    pid_t pid = fork();
+    if (pid == -1) {
+        perror("fork");
+        exit(EXIT_FAILURE);
+    } else if (pid == 0) {
+        signal(SIGTSTP, signalHandler);
+
+        // Выполнение команды
+        execvp(cmd->words[0], cmd->words);
+
+        // Если execlp() не удалась
+        perror("execvp");
+        exit(EXIT_FAILURE);
+    } else {
+        int status;
+        waitpid(pid, &status, WUNTRACED);
+
+        if (WIFEXITED(status)) {
+        
+        } else if (WIFSTOPPED(status)) {
+            // CTRL + Z pushed
+            printf("\n[%d] %s Stopped\n", pid, cmd->words[0]);
+            addJob(jobList, createJob(pid, getpgid(pid), cmd->words[0], 1));
+        } else {
+            printf("\n%s: execution error\n", cmd->words[0]);
+        }
+    }
+}
+
 // operator '>'
 void outputInFile(struct Command* cmd, const char* filename) {
     int fd[2];
@@ -542,7 +579,6 @@ void inputFromFile(struct Command* cmd, const char* filename) {
     }
 }
 
-
 void executeCommand(struct Command* cmd, int firstOperatorFlag, struct Job** jobList) {
     if (cmd == NULL) {
         return;
@@ -580,17 +616,7 @@ void executeCommand(struct Command* cmd, int firstOperatorFlag, struct Job** job
     	inputFromFile(cmd, next_cmd->filename);
     	 
     } else { // Default, no operator
-        pid_t pid = fork();
-        if (pid == -1) {
-            perror("fork");
-            exit(1);
-        } else if (pid == 0) {
-            execvp(cmd->words[0], cmd->words);
-            perror("execvp");
-            exit(1);
-        } else {
-            wait(NULL);
-        }
+    	executeDefault(cmd, jobList);
     }
 }
 
@@ -642,7 +668,8 @@ void help() {
 	printf("rm [filename ...] - remove a file or files\n");
 	printf("touch [filename ...] - create a file or files\n");
 	printf("cat [filename ...] - prints the contents of a file or files\n");
-	printf("jobs [args] - Lists the active jobs. Deafault: the status of all active jobs is displayed.\n");
+	printf("jobs [args] - Lists the active jobs. Default: the status of all active jobs is displayed.\n");
+	printf("history [-c] - Default: Display the history list with line numbers. With option [-c] it clears the history list\n");
 }
 
 // check the existence of the file
@@ -684,10 +711,10 @@ void handler_interrupt(int sig) {
 	interrupt = 1;
 }
 
-// cat: content of the file
+// cat: content of the files
 void cat(const char* filename) {
 	if (filename == NULL) {
-		//signal(SIGINT, handler_interrupt);
+		signal(SIGINT, handler_interrupt);
 		
 		int c;
 		while (!interrupt) {

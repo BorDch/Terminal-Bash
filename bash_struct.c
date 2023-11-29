@@ -8,7 +8,7 @@
 #include "bash_func.h"
 
 void ignore_handler(int sig) {
-	
+
 }
 
 int main() {	     
@@ -16,6 +16,8 @@ int main() {
 	struct History* historyList = NULL;
 	
 	signal(SIGINT, ignore_handler);
+	signal(SIGTSTP, ignore_handler);
+	
      while(1) {	    
      	updateJobList(&jobList);
      	

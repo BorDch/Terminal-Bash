@@ -31,6 +31,7 @@ void executeOrOperator(struct Command* cmd);
 void executePipeline(struct Command* cmd);
 void executeSeqOperator(struct Command* cmd);
 void executeInBackground(struct Command* cmd, struct Job** jobList);
+void executeDefault(struct Command* cmd, struct Job** jobList);
 
 
 // Redirection input and output
