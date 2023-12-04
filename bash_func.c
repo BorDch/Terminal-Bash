@@ -7,7 +7,6 @@
 #include <signal.h>
 #include "jobs.c"
 
-
 // Structure Command
 struct Command {
     char** words;         // Command words
@@ -185,6 +184,10 @@ struct Command* parseCommandsFromWords(char** words, int wordCount, int* firstOp
         } else if (strcmp(words[i], "&") == 0) {
             cmd->flag = 2;
             currentFlag = 2;
+            
+            if (lastWordCommand != NULL) {
+            	lastWordCommand->flag = currentFlag;
+            }
         } else if (strcmp(words[i], "||") == 0) {
             cmd->flag = 3;
             currentFlag = 3;
@@ -313,23 +316,25 @@ void executeOrOperator(struct Command* cmd) {
 // Pipe Function
 void executePipeline(struct Command* cmd) {
     int fd[2];
+    int prev_fd = -1;
 
     while (cmd != NULL) {
-            if (pipe(fd) == -1) {
-                perror("pipe");
-                exit(1);
-            }
+        if (pipe(fd) == -1) {
+            perror("pipe");
+            exit(1);
+        }
 
         pid_t pid = fork();
         if (pid == -1) {
             perror("fork");
             exit(1);
-        } else if (pid == 0) {
-            if (cmd->next != NULL) {
-                if (dup2(fd[0], STDIN_FILENO) == -1) {
+        } else if (pid == 0) { // Child process
+            if (prev_fd != -1) {
+                if (dup2(prev_fd, STDIN_FILENO) == -1) {
                     perror("dup2");
                     exit(1);
                 }
+                close(prev_fd);
             }
 
             if (cmd->next != NULL) {
@@ -337,21 +342,26 @@ void executePipeline(struct Command* cmd) {
                     perror("dup2");
                     exit(1);
                 }
+                close(fd[1]);
             }
 
             close(fd[0]);
-            close(fd[1]);
 
             execvp(cmd->words[0], cmd->words);
             perror("execvp");
             exit(1);
+        } else { // Parent process
+            close(fd[1]);
+
+            if (prev_fd != -1) {
+                close(prev_fd);
+            }
+
+            wait(NULL);
+
+            prev_fd = fd[0];
         }
 
-        if (cmd->flag == 1) {
-            close(fd[0]);
-        }
-
-        wait(NULL);
         cmd = cmd->next;
     }
 }
@@ -582,8 +592,13 @@ void inputFromFile(struct Command* cmd, const char* filename) {
 void executeCommand(struct Command* cmd, int firstOperatorFlag, struct Job** jobList) {
     if (cmd == NULL) {
         return;
-    }
+    } 
     
+    // Check if word is '#' then won't execute following commands
+    if (strcmp(cmd->words[0], "#") == 0) {
+    	cmd->next = NULL;
+    	return;	
+    }
     // Check the command's flag and execute accordingly
     if (firstOperatorFlag == 1 || cmd->flag == 1) { // Pipe ('|')
         executePipeline(cmd);
@@ -619,6 +634,7 @@ void executeCommand(struct Command* cmd, int firstOperatorFlag, struct Job** job
     	executeDefault(cmd, jobList);
     }
 }
+
 
 // pwd: path
 void pwd() {
@@ -741,3 +757,23 @@ void cat(const char* filename) {
 	}
 }
 
+void sleepCustom(int seconds, int flag, struct Job** jobList) {
+    pid_t pid;
+
+    if ((pid = fork()) < 0) {
+        perror("Fork failed");
+        exit(1);
+    } else if (pid == 0) {
+        sleep(seconds);
+        exit(0);
+    } else {
+        if (flag == 0) {
+            // If not in background, wait for the child to finish
+            waitpid(pid, NULL, 0);
+        } else {
+            printf("[1] %d\n", pid);
+            addJob(jobList, createJob(pid, pid, "sleep", 0)); // Assuming jobList
+            printf("Background job added: sleep %d seconds\n", seconds);
+        }
+    }
+}

@@ -17,6 +17,7 @@ int main() {
 	
 	signal(SIGINT, ignore_handler);
 	signal(SIGTSTP, ignore_handler);
+	signal(SIGKILL, ignore_handler);
 	
      while(1) {	    
      	updateJobList(&jobList);
@@ -94,11 +95,45 @@ int main() {
 					temp = temp->next;
 				}
 			}
-		} else if (strcmp(commands->words[0], "jobs") == 0) { 
+		} else if (strcmp(commands->words[0], "kill") == 0) {
+			if (commands->next != NULL) {
+				commands = commands->next;
+				
+				if (strcmp(commands->words[0], "-SIGKILL") == 0 && commands->next != NULL) {
+					char* identifier[2] = {commands->words[0], commands->next->words[0]};
+					killProcessByIdentifier(&jobList, identifier);
+				} else {
+					char* identifier[1] = {commands->words[0]};
+					killProcessByIdentifier(&jobList, identifier);
+				}			
+			} else {
+				perror("kill");
+			}
+		 } else if (strcmp(commands->words[0], "jobs") == 0) { 
 			printJobs(jobList);
 		} else if (strcmp(commands->words[0], "fg") == 0) {
 			if (commands->next != NULL) bringToForeground(&jobList, commands->next->words[0]); 
 			else bringToForeground(&jobList, NULL);
+		} else if (strcmp(commands->words[0], "bg") == 0) {
+			if (commands->next != NULL) resumeInBackground(&jobList, commands->next->words[0]);
+			else resumeInBackground(&jobList, NULL);
+		} else if (strcmp(commands->words[0], "sleep") == 0) {
+			//printf("cmd is %s\n", commands->next->words[0]);
+			commands = commands->next;
+			//printf("cmd flag is %d\n", commands->flag);
+			int isBackground = (commands->next != NULL && commands->flag == 2);
+			//printf("Back is %d\n", isBackground);
+			
+			if (commands != NULL && commands->words[0] != NULL) {
+				if (isBackground) {
+					//printf("background\n");
+					sleepCustom(atoi(commands->words[0]), commands->flag, &jobList);  // Background
+				} else {
+					sleepCustom(atoi(commands->words[0]), 0, &jobList); // Foreground
+				}
+			} else {
+				perror("Invalid sleep command");
+			}
 		} else {
 			executeCommand(commands, firstOperatorFlag, &jobList);
 		} 
