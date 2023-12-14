@@ -33,6 +33,7 @@ struct Job* createJob(pid_t pid, pid_t pgid, const char* command, int state) {
     return job;
 }
 
+
 // Function for adding a Job to the list
 void addJob(struct Job** jobList, struct Job* newJob) {
     if (*jobList == NULL) {
@@ -116,6 +117,12 @@ void printJobsList(struct Job* jobList) {
             case 3:
                 status = "Killed";
                 break;
+            case 4:
+            	status = "Interrupted";
+            	break;
+            case 5:
+				status = "Hangup";
+				break;
             default:
                 status = "Unknown";
         }
@@ -140,7 +147,7 @@ void updateJobList(struct Job** jobList) {
     struct Job* prev = NULL;
 
     while (current != NULL) {
-    	int status;
+     int status;
         pid_t result = waitpid(current->pid, &status, WNOHANG | WUNTRACED);
 
         if (result == -1) {
@@ -151,26 +158,30 @@ void updateJobList(struct Job** jobList) {
             prev = current;
             current = current->next;
         } else {
-        	if (WIFEXITED(status)) {
-        		// Process has terminated
-				printf("[%d]+  Done\t%s\n", getJobCount(*jobList), current->command);
-			} else if (WIFSIGNALED(status) && current->state == 2) {
-				printf("[%d]+  Terminated\t%s\n", getJobCount(*jobList), current->command);
-			} else if (WIFSTOPPED(status) && current->state == 1) {
-				printf("[%d]+  Stopped\t%s\n", getJobCount(*jobList), current->command);
-			}
-			
-		 	if (prev == NULL) {
-				// Current job is the first in the list
-				removeFromJobList(jobList, current->pid);
-				current = *jobList;
-			} else {
-				// Current job is not the first in the list
-				prev->next = current->next;
-				free(current);
-				current = prev->next;
-			}
-        }
+         if (WIFEXITED(status)) {
+          // Process has terminated
+          printf("[%d]+  Done\t%s\n", getJobCount(*jobList), current->command);
+		 } else if (WIFSTOPPED(status) && current->state == 1) {
+			printf("[%d]+  Stopped\t%s\n", getJobCount(*jobList), current->command);
+		 } else if (WIFSIGNALED(status) && current->state == 2) {
+			printf("[%d]+  Terminated\t%s\n", getJobCount(*jobList), current->command);
+		 } else if (WIFSIGNALED(status) && current->state == 4) {
+			printf("[%d]+  Interrupted\t%s\n", getJobCount(*jobList), current->command);
+		 } else if (WIFSIGNALED(status) && current->state == 5) {
+			printf("[%d]+  Hangup\t%s\n", getJobCount(*jobList), current->command);
+		 }
+   
+		 if (prev == NULL) {
+			// Current job is the first in the list
+			removeFromJobList(jobList, current->pid);
+			current = *jobList;
+		 } else {
+			// Current job is not the first in the list
+			prev->next = current->next;
+			free(current);
+			current = prev->next;
+		 }
+       }
     }
 }
 
@@ -252,7 +263,6 @@ void kill_process(pid_t pid) {
 }
 
 
-
 // Function to kill a process by identifier (PID or command name)
 void killProcessByIdentifier(struct Job** jobList, char** identifierArray) {
     char* identifier = identifierArray[0];
@@ -263,6 +273,7 @@ void killProcessByIdentifier(struct Job** jobList, char** identifierArray) {
         printf("1) SIGHUP\t2) SIGINT\t3) SIGQUIT\t4) SIGILL\t5) SIGTRAP\n");
         printf("6) SIGABRT\t7) SIGBUS\t8) SIGFPE\t9) SIGKILL\t10) SIGUSR1\n");
         printf("11) SIGSEGV\t12) SIGUSR2\t13) SIGPIPE\t14) SIGALRM\t15) SIGTERM\n");
+        printf("16) SIGSTKFLT\t17) SIGCHLD\t18) SIGCONT\t19) SIGSTOP\t20) SIGTSTP\n");
         return;
     }
 
@@ -270,8 +281,8 @@ void killProcessByIdentifier(struct Job** jobList, char** identifierArray) {
     pid_t pid;
     int signalFlag = 0;
 
-    // Check if the identifier starts with "-SIGKILL"
-    if (strcmp(identifier, "-SIGKILL") == 0) {
+    // Check if the identifier starts with "-SIGKILL", "-SIGSTOP", or "-SIGCONT"
+    if (strcmp(identifier, "-SIGKILL") == 0 || strcmp(identifier, "-SIGSTOP") == 0 || strcmp(identifier, "-SIGCONT") == 0 || strcmp(identifier, "-SIGINT") == 0 || strcmp(identifier, "-SIGTERM") == 0 || strcmp(identifier, "-SIGHUP") == 0) {
         identifier = identifierArray[1];
         signalFlag = 1;
 
@@ -279,21 +290,50 @@ void killProcessByIdentifier(struct Job** jobList, char** identifierArray) {
         printf("current pid: %d\n", pid);
 
         if (signalFlag) {
-            // Handle the case where user inputs "-SIGKILL" with PID
+            // Handle the case where user inputs "-SIGKILL", "-SIGSTOP", or "-SIGCONT", "-SIGINT" with PID
             struct Job* current = findJobByPid(*jobList, identifier);
 
             if (current != NULL) {
-                kill_process(current->pid);
-                addJob(jobList, createJob(current->pid, current->pgid, identifier, 3));
-                removeFromJobList(jobList, current->pid);
+                if (strcmp(identifierArray[0], "-SIGCONT") == 0) {
+                    if (kill(current->pid, SIGCONT) == 0) {
+		            	addJob(jobList, createJob(current->pid, current->pgid, identifier, 0));
+		            	removeFromJobList(jobList, current->pid);
+		    }
+                } else if (strcmp(identifierArray[0], "-SIGSTOP") == 0) {
+                    if (kill(current->pid, SIGSTOP) == 0) {
+                    	addJob(jobList, createJob(current->pid, current->pgid, identifier, 1));
+                    }
+                } else if (strcmp(identifierArray[0], "-SIGTERM") == 0) {
+                    if (kill(current->pid, SIGTERM) == 0) {
+                    	addJob(jobList, createJob(current->pid, current->pgid, identifier, 2));
+                    	removeFromJobList(jobList, current->pid);
+                    }
+  		} else if (strcmp(identifierArray[0], "-SIGKILL") == 0) {
+                    if (kill(current->pid, SIGKILL) == 0) {
+                    	addJob(jobList, createJob(current->pid, current->pgid, identifier, 3));
+                    	removeFromJobList(jobList, current->pid);
+                    }
+                } else if (strcmp(identifierArray[0], "-SIGINT") == 0) {
+                	if (kill(current->pid, SIGINT) == 0) {
+                		addJob(jobList, createJob(current->pid, current->pgid, identifier, 4));
+                		removeFromJobList(jobList, current->pid);
+                	} 
+                } else if (strcmp(identifierArray[0], "-SIGHUP") == 0) {
+                	if (kill(current->pid, SIGHUP) == 0) {
+                		addJob(jobList, createJob(current->pid, current->pgid, identifier, 5));
+                		removeFromJobList(jobList, current->pid);
+                	} 
+             	} else {
+                    	perror("kill");
+                }
             } else {
                 printf("bash: kill: %s: no such job\n", identifierArray[1]);
             }
 
             return;
-        }
+      	}
     } else {
-        pid = atoi(identifier);
+    	pid = atoi(identifier);
     }
 
     struct Job* current = findJobByPid(*jobList, identifier);
@@ -312,7 +352,7 @@ void killProcessByIdentifier(struct Job** jobList, char** identifierArray) {
 void resumeInBackground(struct Job** jobList, char* identifier) {
     // Check if the identifier is a PID
     pid_t pid = atoi(identifier);
-    printf("1current pid: %d\n", pid);
+    //printf("1current pid: %d\n", pid);
 
     // Find the job with the given PID or command name
     struct Job* current = *jobList;
@@ -335,3 +375,21 @@ void resumeInBackground(struct Job** jobList, char* identifier) {
 
     printf("Job with identifier %s not found or not stopped.\n", identifier);
 }
+
+
+// Function to wait for a specific process to finish
+void waitProcess(struct Job** jobList, pid_t pid) {    
+    int status;
+    
+    waitpid(pid, &status, WUNTRACED);
+    
+    if (WIFEXITED(status)) {
+        printf("[%d]+	Done\t%s\n", pid, (*jobList)->command);
+    } else if (WIFSIGNALED(status)) {
+        printf("[%d]+	Terminated\t%s\n", pid, (*jobList)->command);
+    }
+    
+    removeFromJobList(jobList, pid);
+   
+}	
+

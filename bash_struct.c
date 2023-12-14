@@ -7,6 +7,7 @@
 #include <signal.h>
 #include "bash_func.h"
 
+
 void ignore_handler(int sig) {
 
 }
@@ -17,10 +18,12 @@ int main() {
 	
 	signal(SIGINT, ignore_handler);
 	signal(SIGTSTP, ignore_handler);
-	signal(SIGKILL, ignore_handler);
+	signal(SIGTERM, ignore_handler);
+	signal(SIGQUIT, ignore_handler);
 	
-     while(1) {	    
-     	updateJobList(&jobList);
+    while(1) {
+     	    
+   		updateJobList(&jobList);
      	
      	pwd();
 	    char* input = characterInput();
@@ -43,20 +46,37 @@ int main() {
 	    char** words = splitStringWithoutSpaces(input, &wordCount);
 
 	    int firstOperatorFlag = 0;
-	    struct Command* commands = parseCommandsFromWords(words, wordCount, &firstOperatorFlag);
+	    int secondOperatorFlag = 0;
+	    struct Command* commands = parseCommandsFromWords(words, wordCount, &firstOperatorFlag, &secondOperatorFlag);
 
 	    //printf("First operator's flag: %d\n", firstOperatorFlag);
+	    //printf("Second operator's flag: %d\n", secondOperatorFlag);
 	    
 	   	if (strcmp(commands->words[0], "exit") == 0) {
-	    	free(input);
-	    	free(words);
-	    	struct Command* cmd = commands;
-	    	while (cmd != NULL) {
-	        	struct Command* temp = cmd;
-	        	cmd = cmd->next;
-	        	free(temp);
-	    	}
-	    	break;
+		    	free(input);
+		    	
+		    	for (int i = 0; i < wordCount; i++) {
+					free(words[i]);
+				}
+		
+				free(words);
+		   
+			   	struct Command* cmd = commands;
+				while (cmd != NULL) {
+				
+					for (int i = 0; i < wordCount; i++) {
+						free(cmd->words[i]);
+					}
+					
+					free(cmd->words);
+					
+					struct Command* temp = cmd;
+							
+					cmd = cmd->next;
+					free(temp);	
+				}
+	    		
+	    		break;
 	    } else if (strcmp(commands->words[0], "cd") == 0) {
 	    	if (wordCount == 1) {
 	    		cd(NULL);
@@ -102,6 +122,21 @@ int main() {
 				if (strcmp(commands->words[0], "-SIGKILL") == 0 && commands->next != NULL) {
 					char* identifier[2] = {commands->words[0], commands->next->words[0]};
 					killProcessByIdentifier(&jobList, identifier);
+				} else if (strcmp(commands->words[0], "-SIGSTOP") == 0 && commands->next != NULL) {
+					char* identifier[2] = {commands->words[0], commands->next->words[0]};
+					killProcessByIdentifier(&jobList, identifier); 
+				} else if (strcmp(commands->words[0], "-SIGCONT") == 0 && commands->next != NULL) {
+					char* identifier[2] = {commands->words[0], commands->next->words[0]};
+					killProcessByIdentifier(&jobList, identifier); 
+				} else if (strcmp(commands->words[0], "-SIGINT") == 0 && commands->next != NULL) {
+					char* identifier[2] = {commands->words[0], commands->next->words[0]};
+					killProcessByIdentifier(&jobList, identifier);
+				} else if (strcmp(commands->words[0], "-SIGTERM") == 0 && commands->next != NULL) {
+					char* identifier[2] = {commands->words[0], commands->next->words[0]};
+					killProcessByIdentifier(&jobList, identifier);
+				} else if (strcmp(commands->words[0], "-SIGHUP") == 0 && commands->next != NULL) {
+					char* identifier[2] = {commands->words[0], commands->next->words[0]};
+					killProcessByIdentifier(&jobList, identifier);
 				} else {
 					char* identifier[1] = {commands->words[0]};
 					killProcessByIdentifier(&jobList, identifier);
@@ -134,18 +169,48 @@ int main() {
 			} else {
 				perror("Invalid sleep command");
 			}
+		} else if (strcmp(commands->words[0], "wait") == 0) {
+			if (commands->next != NULL && commands->next->words[0] != NULL) {
+				pid_t waitPid = atoi(commands->next->words[0]);
+				
+				waitProcess(&jobList, waitPid);
+			} else {
+				perror("Invalid wait command. Please provide a valid PID.");
+			}
 		} else {
-			executeCommand(commands, firstOperatorFlag, &jobList);
+			executeCommand(commands, &jobList, firstOperatorFlag, secondOperatorFlag);
 		} 
 	     
 	    free(input);
-	    free(words);
-	    struct Command* cmd = commands;
-	    while (cmd != NULL) {
-		struct Command* tmp = cmd;
-		cmd = cmd->next;
-		free(tmp);
-	    }
+		
+		for (int i = 0; i < wordCount; i++) {
+			free(words[i]);
+		}
+		
+		free(words);
+		   
+	   	struct Command* cmd = commands;
+    	while (cmd != NULL) {
+    	
+    		for (int i = 0; i < wordCount; i++) {
+    			free(cmd->words[i]);
+    		}
+    		
+    		free(cmd->words);
+    	
+    		struct Command* temp = cmd;
+					
+			cmd = cmd->next;
+			free(temp);	
+		}
+	}
+    
+    while (historyList != NULL) {
+    	struct History* temp = historyList;
+    	historyList = historyList->next;
+    	
+    	 free(temp->command);
+    	 free(temp);
     }
 
     freeHistory(historyList);

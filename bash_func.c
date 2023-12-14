@@ -130,7 +130,7 @@ char** splitStringWithoutSpaces(char* str, int* wordCount) {
 
 
 // Parser Function
-struct Command* parseCommandsFromWords(char** words, int wordCount, int* firstOperatorFlag) {
+struct Command* parseCommandsFromWords(char** words, int wordCount, int* firstOperatorFlag, int* secondOperatorFlag) {
     struct Command* head = NULL;  // Command head
     struct Command* current = NULL;
     struct Command* lastWordCommand = NULL; // last Command node 
@@ -177,7 +177,7 @@ struct Command* parseCommandsFromWords(char** words, int wordCount, int* firstOp
             current->next = cmd;
             current = cmd;
         }
-        
+      
         if (strcmp(words[i], "|") == 0) {
             cmd->flag = 1;
             currentFlag = 1;
@@ -191,9 +191,25 @@ struct Command* parseCommandsFromWords(char** words, int wordCount, int* firstOp
         } else if (strcmp(words[i], "||") == 0) {
             cmd->flag = 3;
             currentFlag = 3;
+            
+            if (*firstOperatorFlag == 4 && *secondOperatorFlag == 0) {
+            	*secondOperatorFlag = 3;
+            }
+         
+            if (lastWordCommand != NULL) {
+            	lastWordCommand->flag = currentFlag;
+            }
         } else if (strcmp(words[i], "&&") == 0) {
             cmd->flag = 4;
             currentFlag = 4;
+            
+            if (*firstOperatorFlag == 3 && *secondOperatorFlag == 0) {
+            	*secondOperatorFlag = 4;
+            }
+            
+            if (lastWordCommand != NULL) {
+            	lastWordCommand->flag = currentFlag;
+            }
         } else if (strcmp(words[i], ";") == 0) {
             cmd->flag = 5;
             currentFlag = 5;
@@ -210,13 +226,13 @@ struct Command* parseCommandsFromWords(char** words, int wordCount, int* firstOp
             int wordLength = strlen(words[i]);
             cmd->words = (char**)malloc(2 * sizeof(char*));
             if (cmd->words == NULL) {
-                perror("Memory allocation");
-                exit(1);
+                perror("Segmentation falut");
+              	return NULL;
             }
             cmd->words[0] = (char*)malloc(wordLength + 1);
             if (cmd->words[0] == NULL) {
-                perror("Memory allocation");
-                exit(1);
+                perror("Segmentation fault");
+              	return NULL;
             }
             strcpy(cmd->words[0], words[i]);
             cmd->words[1] = NULL;
@@ -312,6 +328,63 @@ void executeOrOperator(struct Command* cmd) {
         cmd = cmd->next;
     }
 }
+
+
+// Function to execute a command sequence with '&&' and '||' operators
+void executeCommandSequence(struct Command* cmd) {
+    int status = 0;
+    int success = 1;  // To track success of the previous command in the sequence
+
+    while (cmd != NULL) {
+        if (cmd->flag == 4) {  // '&&'
+            if (success) {
+                pid_t pid = fork();
+                if (pid == -1) {
+                    perror("fork");
+                    exit(1);
+                } else if (pid == 0) {
+                    execvp(cmd->words[0], cmd->words);
+                    perror("execvp");
+                    exit(1);
+                } else {
+                    wait(&status);
+                    success = (status == 0);
+                }
+            }
+        } else if (cmd->flag == 3) {  // '||'
+            pid_t pid = fork();
+            if (pid == -1) {
+                perror("fork");
+                exit(1);
+            } else if (pid == 0) {
+                execvp(cmd->words[0], cmd->words);
+                perror("execvp");
+                exit(1);
+            } else {
+                wait(&status);
+                if (status == 0) {
+                    // Break out of the loop if '||' command succeeded
+                    break;
+                }
+            }
+        } else {  // Default, no operator
+            pid_t pid = fork();
+            if (pid == -1) {
+                perror("fork");
+                exit(1);
+            } else if (pid == 0) {
+                execvp(cmd->words[0], cmd->words);
+                perror("execvp");
+                exit(1);
+            } else {
+                wait(NULL);
+            }
+        }
+
+        cmd = cmd->next;
+    }
+}
+
 
 // Pipe Function
 void executePipeline(struct Command* cmd) {
@@ -421,23 +494,25 @@ void executeDefault(struct Command* cmd, struct Job** jobList) {
         exit(EXIT_FAILURE);
     } else if (pid == 0) {
         signal(SIGTSTP, signalHandler);
-
-        // Выполнение команды
+ 
         execvp(cmd->words[0], cmd->words);
-
-        // Если execlp() не удалась
         perror("execvp");
         exit(EXIT_FAILURE);
     } else {
         int status;
         waitpid(pid, &status, WUNTRACED);
+        
+        //tcsetpgrp(STDIN_FILENO, getpgrp()); // return access to parent(bash)
 
         if (WIFEXITED(status)) {
         
         } else if (WIFSTOPPED(status)) {
+            setsid(); // create new process group
+            
+            //tcsetpgrp(STDIN_FILENO, getpid());
             // CTRL + Z pushed
             printf("\n[%d] %s Stopped\n", pid, cmd->words[0]);
-            addJob(jobList, createJob(pid, getpgid(pid), cmd->words[0], 1));
+            addJob(jobList, createJob(pid, pid, cmd->words[0], 1));
         } else {
             printf("\n%s: execution error\n", cmd->words[0]);
         }
@@ -589,7 +664,8 @@ void inputFromFile(struct Command* cmd, const char* filename) {
     }
 }
 
-void executeCommand(struct Command* cmd, int firstOperatorFlag, struct Job** jobList) {
+
+void executeCommand(struct Command* cmd, struct Job** jobList, int firstOperatorFlag, int secondFlag) {
     if (cmd == NULL) {
         return;
     } 
@@ -600,7 +676,9 @@ void executeCommand(struct Command* cmd, int firstOperatorFlag, struct Job** job
     	return;	
     }
     // Check the command's flag and execute accordingly
-    if (firstOperatorFlag == 1 || cmd->flag == 1) { // Pipe ('|')
+    if ((firstOperatorFlag == 3 && secondFlag == 4) || (firstOperatorFlag == 4 && secondFlag == 3)) {
+    	executeCommandSequence(cmd);
+    } else if (firstOperatorFlag == 1 || cmd->flag == 1) { // Pipe ('|')
         executePipeline(cmd);
         
     } else if (firstOperatorFlag == 2 || cmd->flag == 2) { // Background ('&')
