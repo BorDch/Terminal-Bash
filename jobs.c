@@ -16,12 +16,15 @@ struct Job {
     struct Job* next; // Next Job
 };
 
+void clearJobs(struct Job** jobList);
+
 // Function for creating a new Job
-struct Job* createJob(pid_t pid, pid_t pgid, const char* command, int state) {
+struct Job* createJob(pid_t pid, pid_t pgid, char* command, int state) {
     struct Job* job = (struct Job*)malloc(sizeof(struct Job));
     if (job == NULL) {
         perror("Memory allocation");
-        exit(1);
+        clearJobs(&job);
+        return NULL;
     }
 
     job->pid = pid;
@@ -31,6 +34,40 @@ struct Job* createJob(pid_t pid, pid_t pgid, const char* command, int state) {
     job->next = NULL;
 
     return job;
+}
+
+// Functions for cleaning Jobs
+void freeJob(struct Job* job) {
+	if (job == NULL) {
+		return;
+	}
+	
+	printf("Job address: %p\n", job);
+	
+	if (job->command != NULL) {
+		printf("Job Command: %s\n", job->command);
+		free(job->command);
+	}
+	
+	if (job->next != NULL) {
+		free(job->next);
+	}
+	
+	free(job);
+}
+
+void clearJobs(struct Job** jobList) {
+	struct Job* current = *jobList;
+	struct Job* next;
+	
+	while (current != NULL) {
+		next = current->next;
+		free(current->command);
+		free(current);
+		current = next;
+	}
+	
+	*jobList = NULL;
 }
 
 
@@ -61,6 +98,21 @@ int getJobCount(struct Job* jobList) {
 }
 
 
+// Function to get the last job in the job list
+struct Job* getLastJob(struct Job* jobList) {
+    if (jobList == NULL) {
+        return NULL;
+    }
+
+    struct Job* current = jobList;
+    while (current->next != NULL) {
+        current = current->next;
+    }
+
+    return current;
+}
+
+
 // Function to find a job by PID or command name
 struct Job* findJobByPid(struct Job* jobList, char* identifier) {
     struct Job* current = jobList;
@@ -88,8 +140,9 @@ void removeFromJobList(struct Job** jobList, pid_t pid) {
                 *jobList = current->next;
             } else {
                 prev->next = current->next;
-            }
-
+        	}
+	     
+	    	free(current->command);
             free(current);
             return;
         }
@@ -178,6 +231,7 @@ void updateJobList(struct Job** jobList) {
 		 } else {
 			// Current job is not the first in the list
 			prev->next = current->next;
+			free(current->command);
 			free(current);
 			current = prev->next;
 		 }
@@ -202,9 +256,10 @@ void bringToForeground(struct Job** jobList, char* identifier) {
             pid_t pid = lastJob->pid;
             
             if (strcmp(lastJob->command, "cat") == 0 || strcmp(lastJob->command, "wc") == 0) {
-            	kill(-pid, SIGINT);
+            	kill(pid, SIGINT);
             } else {
 		    	// Bring the job to the foreground
+		    	kill(pid, SIGCONT);
 		    	waitpid(pid, NULL, 0); // Wait for the process to finish
 		    	printf("[%d]+  Done\t\t%s\n", getJobCount(*jobList), lastJob->command);
             }
@@ -227,9 +282,10 @@ void bringToForeground(struct Job** jobList, char* identifier) {
         while (current != NULL) {
             if (current->pid == pid || (strcmp(current->command, identifier) == 0)) {
             	if (strcmp(current->command, "cat") == 0 || strcmp(current->command, "wc") == 0)  {
-                	kill(-pid, SIGINT);	
+                	kill(pid, SIGINT);	
                 } else {
 		            // Bring the job to the foreground
+		            kill(pid, SIGCONT);
 		            waitpid(current->pid, NULL, 0); // Wait for the process to finish
 		            printf("[%d]+  Done\t\t%s\n", getJobCount(*jobList), current->command);
 		        }
@@ -240,7 +296,8 @@ void bringToForeground(struct Job** jobList, char* identifier) {
                 } else {
                     prev->next = current->next;
                 }
-
+				
+				free(current->command);
                 free(current);
                 current = NULL;
                 return;
@@ -298,7 +355,7 @@ void killProcessByIdentifier(struct Job** jobList, char** identifierArray) {
                     if (kill(current->pid, SIGCONT) == 0) {
 		            	addJob(jobList, createJob(current->pid, current->pgid, identifier, 0));
 		            	removeFromJobList(jobList, current->pid);
-		    }
+		    		}
                 } else if (strcmp(identifierArray[0], "-SIGSTOP") == 0) {
                     if (kill(current->pid, SIGSTOP) == 0) {
                     	addJob(jobList, createJob(current->pid, current->pgid, identifier, 1));
@@ -308,7 +365,7 @@ void killProcessByIdentifier(struct Job** jobList, char** identifierArray) {
                     	addJob(jobList, createJob(current->pid, current->pgid, identifier, 2));
                     	removeFromJobList(jobList, current->pid);
                     }
-  		} else if (strcmp(identifierArray[0], "-SIGKILL") == 0) {
+  				} else if (strcmp(identifierArray[0], "-SIGKILL") == 0) {
                     if (kill(current->pid, SIGKILL) == 0) {
                     	addJob(jobList, createJob(current->pid, current->pgid, identifier, 3));
                     	removeFromJobList(jobList, current->pid);
@@ -350,19 +407,34 @@ void killProcessByIdentifier(struct Job** jobList, char** identifierArray) {
 
 // Function to resume a background job by PID or command name
 void resumeInBackground(struct Job** jobList, char* identifier) {
+    if (identifier == NULL) {
+        // If identifier is NULL, attempt to resume the most recent background job
+        struct Job* lastJob = getLastJob(*jobList);
+        if (lastJob != NULL) {
+            pid_t pid = lastJob->pid;
+            // Resume the last background job
+            kill(pid, SIGCONT);
+            lastJob->state = 0;  // Update job state to running
+            printf("[%d]+  Running\t%s\n", getJobCount(*jobList), lastJob->command);
+        } else {
+            printf("No background jobs found.\n");
+        }
+        return;
+    }
+   	
     // Check if the identifier is a PID
     pid_t pid = atoi(identifier);
     //printf("1current pid: %d\n", pid);
 
     // Find the job with the given PID or command name
-    struct Job* current = *jobList;
+    struct Job* current = findJobByPid(*jobList, identifier);
 
     while (current != NULL) {
         if (current->pid == pid || (strcmp(current->command, identifier) == 0)) {
             printf("2Process pid: %d\n", current->pid);
             if (current->state == 1) {
                 // Job is currently stopped, resume it in the background
-                kill(-pid, SIGCONT);
+                kill(pid, SIGCONT);
                 current->state = 0;  // Update job state to running
                 printf("[%d]+  Running\t%s\n", getJobCount(*jobList), current->command);
             } else {
@@ -390,6 +462,4 @@ void waitProcess(struct Job** jobList, pid_t pid) {
     }
     
     removeFromJobList(jobList, pid);
-   
-}	
-
+}

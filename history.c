@@ -63,6 +63,13 @@ void freeHistory(struct History* historyList) {
     }
 }
 
+void freeHistoryNode(struct History* historyNode) {
+	if (historyNode != NULL) {
+		free(historyNode->command);
+		free(historyNode);
+	}
+}
+
 // Function to clear command history
 void clearHistory(struct History** historyList) {
     freeHistory(*historyList);

@@ -12,27 +12,38 @@ void ignore_handler(int sig) {
 
 }
 
-int main() {	     
+
+int main() {	
+	struct Command* commands = NULL;     
 	struct Job* jobList = NULL;
 	struct History* historyList = NULL;
+	struct NodeTracker* nodeTracker = NULL;	
+	
 	
 	signal(SIGINT, ignore_handler);
 	signal(SIGTSTP, ignore_handler);
 	signal(SIGTERM, ignore_handler);
 	signal(SIGQUIT, ignore_handler);
+	signal(SIGSEGV, ignore_handler);
+	signal(SIGTTIN, ignore_handler);
 	
-    while(1) {
-     	    
+    while(1) {    
    		updateJobList(&jobList);
      	
      	pwd();
 	    char* input = characterInput();
 	    addToHistory(&historyList, input);
 	    
+	    if (input == "EOF") {
+	    	clearerr(stdin);
+	    	printf("CTRL+D handled\n");
+	    	continue;
+	    }
+	    
 	    if (input[0] == '\0') { // If press Enter, skip and continue new iteration
 	    	free(input);
 	    	continue;
-	    } else if (strcmp(input, "history") == 0) {
+	    }  else if (strcmp(input, "history") == 0) {
 	    	printHistory(historyList);
 	    	free(input);
 	    	continue;
@@ -40,6 +51,9 @@ int main() {
 	    	clearHistory(&historyList);
 	    	free(input);
 	    	continue;
+	    } else if (strcmp(input, "exit") == 0) {
+	    	free(input);
+	    	break;
 	    }
 
 	    int wordCount;
@@ -47,37 +61,20 @@ int main() {
 
 	    int firstOperatorFlag = 0;
 	    int secondOperatorFlag = 0;
-	    struct Command* commands = parseCommandsFromWords(words, wordCount, &firstOperatorFlag, &secondOperatorFlag);
+	    commands = parseCommandsFromWords(words, wordCount, &firstOperatorFlag, &secondOperatorFlag);
+	    
+	    free(input);
+		
+		for (int i = 0; i < wordCount; i++) {
+			free(words[i]);
+		}
+		
+		free(words);
 
 	    //printf("First operator's flag: %d\n", firstOperatorFlag);
 	    //printf("Second operator's flag: %d\n", secondOperatorFlag);
 	    
-	   	if (strcmp(commands->words[0], "exit") == 0) {
-		    	free(input);
-		    	
-		    	for (int i = 0; i < wordCount; i++) {
-					free(words[i]);
-				}
-		
-				free(words);
-		   
-			   	struct Command* cmd = commands;
-				while (cmd != NULL) {
-				
-					for (int i = 0; i < wordCount; i++) {
-						free(cmd->words[i]);
-					}
-					
-					free(cmd->words);
-					
-					struct Command* temp = cmd;
-							
-					cmd = cmd->next;
-					free(temp);	
-				}
-	    		
-	    		break;
-	    } else if (strcmp(commands->words[0], "cd") == 0) {
+	    if (strcmp(commands->words[0], "cd") == 0) {
 	    	if (wordCount == 1) {
 	    		cd(NULL);
 	    	} else {
@@ -117,7 +114,9 @@ int main() {
 			}
 		} else if (strcmp(commands->words[0], "kill") == 0) {
 			if (commands->next != NULL) {
+				struct Command* tmp = commands; // create temporary node for first word: 'kill'
 				commands = commands->next;
+				freeCmd(tmp);
 				
 				if (strcmp(commands->words[0], "-SIGKILL") == 0 && commands->next != NULL) {
 					char* identifier[2] = {commands->words[0], commands->next->words[0]};
@@ -140,7 +139,9 @@ int main() {
 				} else {
 					char* identifier[1] = {commands->words[0]};
 					killProcessByIdentifier(&jobList, identifier);
-				}			
+				}
+				
+				freeCommand(&commands);  // clear full Command list: 'kill -flag job_pid'		
 			} else {
 				perror("kill");
 			}
@@ -178,42 +179,26 @@ int main() {
 				perror("Invalid wait command. Please provide a valid PID.");
 			}
 		} else {
-			executeCommand(commands, &jobList, firstOperatorFlag, secondOperatorFlag);
-		} 
-	     
-	    free(input);
-		
-		for (int i = 0; i < wordCount; i++) {
-			free(words[i]);
+			executeCommand(commands, &jobList, firstOperatorFlag, secondOperatorFlag, historyList);
+			
 		}
 		
-		free(words);
-		   
-	   	struct Command* cmd = commands;
-    	while (cmd != NULL) {
-    	
-    		for (int i = 0; i < wordCount; i++) {
-    			free(cmd->words[i]);
-    		}
-    		
-    		free(cmd->words);
-    	
-    		struct Command* temp = cmd;
-					
-			cmd = cmd->next;
-			free(temp);	
-		}
+		freeCommand(&commands);
 	}
     
     while (historyList != NULL) {
     	struct History* temp = historyList;
     	historyList = historyList->next;
     	
-    	 free(temp->command);
-    	 free(temp);
+    	free(temp->command);
+    	free(temp);
     }
+  
+   clearJobs(&jobList);
+   freeCommand(&commands);
+   freeHistory(historyList);
+				
 
-    freeHistory(historyList);
     return 0;
 }
 

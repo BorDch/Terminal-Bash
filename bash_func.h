@@ -5,12 +5,12 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include "bash_func.c"
-#include "history.c"
 
 // For Jobs
-struct Job* createJob(pid_t pid, pid_t pgid, const char* command, int state);
+struct Job* createJob(pid_t pid, pid_t pgid, char* command, int state);
 void addJob(struct Job** jobList, struct Job* newJob);
 int getJobCount(struct Job* jobList);
+struct Job* getLastJob(struct Job* jobList);
 struct Job* findJobByPid(struct Job* jobList, char* identifier);
 void removeFromJobList(struct Job** jobList, pid_t pid);
 void printJobsList(struct Job* jobList);
@@ -37,7 +37,7 @@ void executeCommandSequence(struct Command* cmd);
 void executePipeline(struct Command* cmd);
 void executeSeqOperator(struct Command* cmd);
 void executeInBackground(struct Command* cmd, struct Job** jobList);
-void executeDefault(struct Command* cmd, struct Job** jobList);
+void executeDefault(struct Command* cmd, struct Job** jobList, struct History* historyList);
 
 
 // Redirection input and output
@@ -47,7 +47,7 @@ void inputFromFile(struct Command* cmd, const char* filename);
 
 
 // Execute Commands
-void executeCommand(struct Command* cmd, struct Job** joblist, int firstOperatorFlag, int secondFlag);
+void executeCommand(struct Command* cmd, struct Job** joblist, int firstOperatorFlag, int secondFlag, struct History* historyList);
 //void executeUntilGrid(struct Command* cmd, struct Job** jobList);
 void pwd();
 void echo(struct Command* cmd);
@@ -65,3 +65,10 @@ void addToHistory(struct History** historyList, const char* command);
 void printHistory(const struct History* historyList);
 void freeHistory(struct History* historyList);
 void clearHistory(struct History** historyList);
+
+
+// Free memory 
+void freeCmd(struct Command* cmd);
+void freeCommand(struct Command** cmd); 
+void freeJob(struct Job* job);
+void clearJobs(struct Job** jobList);

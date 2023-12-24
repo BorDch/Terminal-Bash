@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include "jobs.c"
+#include "history.c"
 
 // Structure Command
 struct Command {
@@ -33,6 +34,13 @@ char* characterInput() {
     int c;
     while (1) {
         c = getchar();
+        
+        if (c == EOF) {
+       		printf("EOF\n");
+       		char* eof = "EOF";
+       		free(input);
+       		return eof;
+        }
 
         if (c == '\n') {
             break;
@@ -129,11 +137,13 @@ char** splitStringWithoutSpaces(char* str, int* wordCount) {
 }
 
 
+void freeCommand(struct Command** cmd);
+
 // Parser Function
 struct Command* parseCommandsFromWords(char** words, int wordCount, int* firstOperatorFlag, int* secondOperatorFlag) {
     struct Command* head = NULL;  // Command head
     struct Command* current = NULL;
-    struct Command* lastWordCommand = NULL; // last Command node 
+    struct Command* lastWordCommand = NULL;
     int currentFlag = 0; // Current flag for operators
     
     for (int i = 0; i < wordCount; i++) {
@@ -165,6 +175,43 @@ struct Command* parseCommandsFromWords(char** words, int wordCount, int* firstOp
     }
 
     for (int i = 0; i < wordCount; i++) {
+        
+        if (strcmp(words[i], "|") == 0) {
+            currentFlag = 1;
+            continue;
+        } else if (strcmp(words[i], "&") == 0) {
+            currentFlag = 2;
+            continue;
+        } else if (strcmp(words[i], "||") == 0) {
+            currentFlag = 3;
+          
+            if (*firstOperatorFlag == 4 && *secondOperatorFlag == 0) {
+            	*secondOperatorFlag = 3;
+            }
+            continue;
+        } else if (strcmp(words[i], "&&") == 0) {
+            currentFlag = 4;
+            
+            if (*firstOperatorFlag == 3 && *secondOperatorFlag == 0) {
+            	*secondOperatorFlag = 4;
+         	}
+         	
+         	continue;
+        } else if (strcmp(words[i], ";") == 0) {
+            currentFlag = 5;
+			continue;
+        } else if (strcmp(words[i], ">") == 0) {
+        	currentFlag = 6;
+        	continue;
+        } else if (strcmp(words[i], ">>") == 0) {
+        	currentFlag = 7;
+        	continue;
+        } else if (strcmp(words[i], "<") == 0) {
+        	currentFlag = 8;
+        	continue;
+        }
+        
+        
         struct Command* cmd = (struct Command*)malloc(sizeof(struct Command));
         cmd->words = NULL;
         cmd->flag = 0;
@@ -178,80 +225,71 @@ struct Command* parseCommandsFromWords(char** words, int wordCount, int* firstOp
             current = cmd;
         }
       
-        if (strcmp(words[i], "|") == 0) {
-            cmd->flag = 1;
-            currentFlag = 1;
-        } else if (strcmp(words[i], "&") == 0) {
-            cmd->flag = 2;
-            currentFlag = 2;
-            
-            if (lastWordCommand != NULL) {
-            	lastWordCommand->flag = currentFlag;
-            }
-        } else if (strcmp(words[i], "||") == 0) {
-            cmd->flag = 3;
-            currentFlag = 3;
-            
-            if (*firstOperatorFlag == 4 && *secondOperatorFlag == 0) {
-            	*secondOperatorFlag = 3;
-            }
-         
-            if (lastWordCommand != NULL) {
-            	lastWordCommand->flag = currentFlag;
-            }
-        } else if (strcmp(words[i], "&&") == 0) {
-            cmd->flag = 4;
-            currentFlag = 4;
-            
-            if (*firstOperatorFlag == 3 && *secondOperatorFlag == 0) {
-            	*secondOperatorFlag = 4;
-            }
-            
-            if (lastWordCommand != NULL) {
-            	lastWordCommand->flag = currentFlag;
-            }
-        } else if (strcmp(words[i], ";") == 0) {
-            cmd->flag = 5;
-            currentFlag = 5;
-        } else if (strcmp(words[i], ">") == 0) {
-        	cmd->flag = 6;
-        	currentFlag = 6;
-        } else if (strcmp(words[i], ">>") == 0) {
-        	cmd->flag = 7;
-        	currentFlag = 7;
-        } else if (strcmp(words[i], "<") == 0) {
-        	cmd->flag = 8;
-        	currentFlag = 8;
-        } else {
-            int wordLength = strlen(words[i]);
-            cmd->words = (char**)malloc(2 * sizeof(char*));
-            if (cmd->words == NULL) {
-                perror("Segmentation falut");
-              	return NULL;
-            }
-            cmd->words[0] = (char*)malloc(wordLength + 1);
-            if (cmd->words[0] == NULL) {
-                perror("Segmentation fault");
-              	return NULL;
-            }
-            strcpy(cmd->words[0], words[i]);
-            cmd->words[1] = NULL;
-            cmd->flag = currentFlag;
-        
-            // Connect last word with logical operator
-            if (lastWordCommand != NULL) {
-                lastWordCommand->next = cmd;
-            }
-            // Remember last node
-            lastWordCommand = cmd;
-            //printf("Parsed word: %s, Flag: %d\n", cmd->words[0], cmd->flag);
-            
+        int wordLength = strlen(words[i]);
+        cmd->words = (char**)malloc(2 * sizeof(char*));
+        if (cmd->words == NULL) {
+            perror("Segmentation falut");
+            freeCommand(&head);
+          	return NULL;
         }
-    }
+        cmd->words[0] = (char*)malloc(wordLength + 1);
+        if (cmd->words[0] == NULL) {
+            perror("Segmentation fault");
+            freeCommand(&head);
+          	return NULL;
+        }
+        strcpy(cmd->words[0], words[i]);
+        cmd->words[1] = NULL;
+        cmd->flag = currentFlag;
     
+        // Connect last word with logical operator
+        if (lastWordCommand != NULL) {
+            lastWordCommand->next = cmd;
+            lastWordCommand->flag = currentFlag;
+        }
+        // Remember last node
+        lastWordCommand = cmd;
+        lastWordCommand->flag = currentFlag;
+        //printf("Last word: %s\n", lastWordCommand->words[0]);
+        //printf("Parsed word: %s, Flag: %d\n", cmd->words[0], cmd->flag);
+    } 
+  
     return head;
 }
 
+
+// Two functions for cleaning memory of commands and a list of commands  
+void freeCmd(struct Command* cmd) {
+    struct Command* current = cmd;
+    
+    if (current != NULL) {
+    	for (int i = 0; current->words[i] != NULL; i++) {
+    		free(current->words[i]);
+    	}
+    	free(current->words);
+    	free(current);
+    }
+}
+
+
+void freeCommand(struct Command** cmd) {
+    struct Command* current = *cmd;
+    struct Command* next;
+
+    while (current != NULL) {
+        next = current->next;
+        for (int i = 0; current->words[i] != NULL; i++) {
+            free(current->words[i]);
+        }
+        free(current->words);
+        free(current);
+
+        current = next;
+    }
+
+    *cmd = NULL;
+}
+    
 
 // To check the operation of the parser
 void printAllWords(struct Command* commands) {
@@ -459,6 +497,7 @@ void executeSeqOperator(struct Command* cmd) {
     }
 }
 
+/* Extra modifications
 // Function for operator '&'
 void executeInBackground(struct Command* cmd, struct Job** jobList) {
     pid_t pid = fork();
@@ -480,11 +519,70 @@ void executeInBackground(struct Command* cmd, struct Job** jobList) {
     }
 }
 
+*/
 
-void signalHandler(int sig) {
-
+void executeInBackground(struct Command* cmd, struct Job** jobList) {
+    pid_t pid = fork();
+    if (pid == -1) {
+        perror("fork");
+        exit(1);
+    } else if (pid == 0) {
+        // Child process
+        setpgid(0, 0);
+        tcsetpgrp(STDIN_FILENO, getpgrp()); // Capture the terminal
+        execvp(cmd->words[0], cmd->words);
+        perror("execvp");
+        exit(1);
+    } else {
+        // Parent process
+        pid_t pgid = getpgid(pid);
+        printf("Process with id [%d]\n", pid);
+        addJob(jobList, createJob(pid, pgid, cmd->words[0], 0)); // Adding the job to the list
+        tcsetpgrp(STDIN_FILENO, getpgrp()); // Return access to the parent (bash)
+    }
 }
 
+
+void signalHandler(int sig) { 
+}
+
+void executeDefault(struct Command* cmd, struct Job** jobList, struct History* historyList) { 
+    signal(SIGTSTP, signalHandler);
+    pid_t pid = fork();
+    if (pid == -1) {
+        perror("fork");
+        freeCommand(&cmd);
+        freeHistoryNode(historyList);
+        exit(EXIT_FAILURE);
+    } else if (pid == 0) { 
+    	signal(SIGTSTP, signalHandler);
+        //tcsetpgrp(STDIN_FILENO, getpgrp()); // Capture the terminal
+        execvp(cmd->words[0], cmd->words);
+        perror("execvp");
+        freeCommand(&cmd);
+        freeHistoryNode(historyList);
+        exit(EXIT_FAILURE);
+    } else {
+        int status;
+        setpgid(0, 0);
+        
+        waitpid(pid, &status, WUNTRACED);
+
+        //tcsetpgrp(STDIN_FILENO, getpgrp()); // Return access to the parent (bash)
+
+        if (WIFEXITED(status)) {
+            // Process exited successfully
+        } else if (WIFSTOPPED(status)) {
+            // CTRL + Z pushed
+            printf("\n[%d] %s Stopped\n", pid, cmd->words[0]);
+            addJob(jobList, createJob(pid, pid, cmd->words[0], 1));
+        } else {
+            printf("\n%s: execution error\n", cmd->words[0]);
+        }
+    }
+}
+
+/* Extra modifications
 void executeDefault(struct Command* cmd, struct Job** jobList) {
     signal(SIGTSTP, signalHandler);
 
@@ -517,7 +615,7 @@ void executeDefault(struct Command* cmd, struct Job** jobList) {
             printf("\n%s: execution error\n", cmd->words[0]);
         }
     }
-}
+} */
 
 // operator '>'
 void outputInFile(struct Command* cmd, const char* filename) {
@@ -665,7 +763,7 @@ void inputFromFile(struct Command* cmd, const char* filename) {
 }
 
 
-void executeCommand(struct Command* cmd, struct Job** jobList, int firstOperatorFlag, int secondFlag) {
+void executeCommand(struct Command* cmd, struct Job** jobList, int firstOperatorFlag, int secondFlag, struct History* historyList) {
     if (cmd == NULL) {
         return;
     } 
@@ -709,7 +807,7 @@ void executeCommand(struct Command* cmd, struct Job** jobList, int firstOperator
     	inputFromFile(cmd, next_cmd->filename);
     	 
     } else { // Default, no operator
-    	executeDefault(cmd, jobList);
+    	executeDefault(cmd, jobList, historyList);
     }
 }
 
@@ -746,6 +844,7 @@ void cd(const char* path) {
 void echo(struct Command* cmd) {
 	while (cmd != NULL && cmd->words[0] != NULL) {
 		printf("%s ", cmd->words[0]);
+		freeCmd(cmd);
 		cmd = cmd->next;
 	}
 	printf("\n");
@@ -754,16 +853,22 @@ void echo(struct Command* cmd) {
 // help: manual page with bash commands
 void help() {
 	printf("Available commands:\n*****\n");
-	printf("pwd [-LP] - prints the absolute path to the screen\n");
-	printf("cd [dir] - changes directory\n");
-	printf("exit - closes the terminal\n");
-	printf("clear - makes the terminal window empty\n");
-	printf("echo [arg ...] - prints anything to the screen\n");
-	printf("rm [filename ...] - remove a file or files\n");
-	printf("touch [filename ...] - create a file or files\n");
-	printf("cat [filename ...] - prints the contents of a file or files\n");
+	printf("pwd [-LP] - Prints the absolute path to the screen.\n");
+	printf("ls [-LP-flags...] - Lists the current directory's content.\n");
+	printf("cd [dir] - Changes directory.\n");
+	printf("exit - Closes the terminal.\n");
+	printf("clear - Makes the terminal window empty.\n");
+	printf("echo [arg ...] - Prints anything to the screen.\n");
+	printf("rm [filename ...] - Remove a file or files.\n");
+	printf("touch [filename ...] - Create a file or files.\n");
+	printf("cat [filename ...] - Prints the contents of a file or files.\n____\n");
 	printf("jobs [args] - Lists the active jobs. Default: the status of all active jobs is displayed.\n");
-	printf("history [-c] - Default: Display the history list with line numbers. With option [-c] it clears the history list\n");
+	printf("bg [job(pid or name)] - Transfer a job in the background mode.\n");
+	printf("fg [job(pid or name)] - Transfer a job in the foreground(active) mode.\n");
+	printf("kill [signal name(flags: '-l'...)] [job pid or job name] - Sends the signals to job\n");
+	printf("wait [job(pid or name)] - Wait for job completion\n____\n");
+	printf("history [-c] - Default: Display the history list with line numbers. With option [-c] it clears the history list.\n");
+	printf("sleep [seconds] - Pauses the terminal for the entered seconds.\n");
 }
 
 // check the existence of the file
@@ -813,7 +918,7 @@ void cat(const char* filename) {
 		int c;
 		while (!interrupt) {
 			c = getchar();
-			if (c == EOF) break;
+			if (c == EOF) break; // If CTRL+D was pushed
 			else putchar(c);
 		}
 		interrupt = 0;
