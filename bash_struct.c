@@ -17,20 +17,18 @@ int main() {
 	struct Command* commands = NULL;     
 	struct Job* jobList = NULL;
 	struct History* historyList = NULL;
-	struct NodeTracker* nodeTracker = NULL;	
-	
 	
 	signal(SIGINT, ignore_handler);
-	signal(SIGTSTP, ignore_handler);
-	signal(SIGTERM, ignore_handler);
-	signal(SIGQUIT, ignore_handler);
-	signal(SIGSEGV, ignore_handler);
-	signal(SIGTTIN, ignore_handler);
+	signal(SIGTSTP, SIG_IGN);
+	signal(SIGTERM, SIG_IGN);
+	signal(SIGQUIT, SIG_IGN);
+	signal(SIGTTOU, SIG_IGN);
+	signal(SIGTTIN, SIG_IGN);
 	
     while(1) {    
-   		updateJobList(&jobList);
+   	    updateJobList(&jobList);
      	
-     	pwd();
+     	    pwd();
 	    char* input = characterInput();
 	    addToHistory(&historyList, input);
 	    
@@ -62,15 +60,15 @@ int main() {
 	    int firstOperatorFlag = 0;
 	    int secondOperatorFlag = 0;
 	    commands = parseCommandsFromWords(words, wordCount, &firstOperatorFlag, &secondOperatorFlag);
-	    
-	    free(input);
 		
-		for (int i = 0; i < wordCount; i++) {
+            free(input);
+		
+	    for (int i = 0; i < wordCount; i++) {
 			free(words[i]);
-		}
+	    }
 		
-		free(words);
-
+	    free(words);
+	   
 	    //printf("First operator's flag: %d\n", firstOperatorFlag);
 	    //printf("Second operator's flag: %d\n", secondOperatorFlag);
 	    
@@ -121,7 +119,7 @@ int main() {
 				if (strcmp(commands->words[0], "-SIGKILL") == 0 && commands->next != NULL) {
 					char* identifier[2] = {commands->words[0], commands->next->words[0]};
 					killProcessByIdentifier(&jobList, identifier);
-				} else if (strcmp(commands->words[0], "-SIGSTOP") == 0 && commands->next != NULL) {
+				} else if ((strcmp(commands->words[0], "-SIGSTOP") == 0 || strcmp(commands->words[0], "-SIGTSTP") == 0) && commands->next != NULL) {
 					char* identifier[2] = {commands->words[0], commands->next->words[0]};
 					killProcessByIdentifier(&jobList, identifier); 
 				} else if (strcmp(commands->words[0], "-SIGCONT") == 0 && commands->next != NULL) {
@@ -131,6 +129,9 @@ int main() {
 					char* identifier[2] = {commands->words[0], commands->next->words[0]};
 					killProcessByIdentifier(&jobList, identifier);
 				} else if (strcmp(commands->words[0], "-SIGTERM") == 0 && commands->next != NULL) {
+					char* identifier[2] = {commands->words[0], commands->next->words[0]};
+					killProcessByIdentifier(&jobList, identifier);
+				}  else if (strcmp(commands->words[0], "-SIGQUIT") == 0 && commands->next != NULL) {
 					char* identifier[2] = {commands->words[0], commands->next->words[0]};
 					killProcessByIdentifier(&jobList, identifier);
 				} else if (strcmp(commands->words[0], "-SIGHUP") == 0 && commands->next != NULL) {
@@ -179,12 +180,11 @@ int main() {
 				perror("Invalid wait command. Please provide a valid PID.");
 			}
 		} else {
-			executeCommand(commands, &jobList, firstOperatorFlag, secondOperatorFlag, historyList);
-			
+			executeCommand(commands, &jobList, firstOperatorFlag, secondOperatorFlag, &historyList);
 		}
-		
+			
 		freeCommand(&commands);
-	}
+    }
     
     while (historyList != NULL) {
     	struct History* temp = historyList;

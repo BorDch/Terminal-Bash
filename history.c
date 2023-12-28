@@ -11,7 +11,7 @@ struct History {
 };
 
 // Function to create a new history node
-struct History* createHistoryNode(const char* command) {
+struct History* createHistoryNode(char* command) {
     struct History* newNode = (struct History*)malloc(sizeof(struct History));
     if (newNode == NULL) {
         perror("Memory allocation");
@@ -25,7 +25,7 @@ struct History* createHistoryNode(const char* command) {
 }
 
 // Function to add a command to history
-void addToHistory(struct History** historyList, const char* command) {
+void addToHistory(struct History** historyList, char* command) {
     struct History* newNode = createHistoryNode(command);
     newNode->next = *historyList;
     *historyList = newNode;
@@ -50,6 +50,7 @@ void printHistory(const struct History* historyList) {
     }
 }
 
+
 // Function to free memory allocated for history
 void freeHistory(struct History* historyList) {
     struct History* current = historyList;
@@ -63,11 +64,14 @@ void freeHistory(struct History* historyList) {
     }
 }
 
-void freeHistoryNode(struct History* historyNode) {
-	if (historyNode != NULL) {
-		free(historyNode->command);
-		free(historyNode);
+void freeHistoryNode(struct History** historyNode) {
+	if (*historyNode != NULL) {
+		struct History* temp = *historyNode;
+		free(temp->command);
+		free(temp);
 	}
+	
+	*historyNode = NULL;
 }
 
 // Function to clear command history
@@ -75,3 +79,29 @@ void clearHistory(struct History** historyList) {
     freeHistory(*historyList);
     *historyList = NULL;
 }
+
+/*
+struct History* findCommandInHistory(struct History* historyList, char* command) {
+    struct History* current = historyList;
+    
+    while (current != NULL) {
+        if (strcmp(current->command, command) == 0) {
+            return current; // Найдено совпадение
+        }
+        current = current->next;
+    }
+    
+    return NULL; // Команда не найдена
+}
+
+void removeFromHistory(struct History** historyList, struct History* nodeToRemove) {
+    struct History* current = *historyList;
+    
+    while (current != nodeToRemove) {
+    	current = current->next;
+    }
+    
+    freeHistoryNode(&current);
+}
+
+*/

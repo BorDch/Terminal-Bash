@@ -37,7 +37,7 @@ void executeCommandSequence(struct Command* cmd);
 void executePipeline(struct Command* cmd);
 void executeSeqOperator(struct Command* cmd);
 void executeInBackground(struct Command* cmd, struct Job** jobList);
-void executeDefault(struct Command* cmd, struct Job** jobList, struct History* historyList);
+void executeDefault(struct Command* cmd, struct Job** jobList, struct History** historyList);
 
 
 // Redirection input and output
@@ -47,7 +47,7 @@ void inputFromFile(struct Command* cmd, const char* filename);
 
 
 // Execute Commands
-void executeCommand(struct Command* cmd, struct Job** joblist, int firstOperatorFlag, int secondFlag, struct History* historyList);
+void executeCommand(struct Command* cmd, struct Job** joblist, int firstOperatorFlag, int secondFlag, struct History** historyList);
 //void executeUntilGrid(struct Command* cmd, struct Job** jobList);
 void pwd();
 void echo(struct Command* cmd);
@@ -60,11 +60,13 @@ void sleepCustom(int seconds, int flag, struct Job** jobList);
 
 
 // For Bash History
-struct History* createHistoryNode(const char* command);
-void addToHistory(struct History** historyList, const char* command);
+struct History* createHistoryNode(char* command);
+void addToHistory(struct History** historyList, char* command);
 void printHistory(const struct History* historyList);
 void freeHistory(struct History* historyList);
 void clearHistory(struct History** historyList);
+//struct History* findCommandInHistory(struct History* historyList, char* command);
+//void removeFromHistory(struct History** historyList, struct History* nodeToRemove);
 
 
 // Free memory 

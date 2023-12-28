@@ -176,6 +176,9 @@ void printJobsList(struct Job* jobList) {
             case 5:
 				status = "Hangup";
 				break;
+			case 6:
+				status = "Quited";
+				break;
             default:
                 status = "Unknown";
         }
@@ -201,7 +204,7 @@ void updateJobList(struct Job** jobList) {
 
     while (current != NULL) {
      int status;
-        pid_t result = waitpid(current->pid, &status, WNOHANG | WUNTRACED);
+        pid_t result = waitpid(current->pid, &status, WNOHANG | WUNTRACED | WCONTINUED);
 
         if (result == -1) {
             perror("waitpid");
@@ -222,6 +225,9 @@ void updateJobList(struct Job** jobList) {
 			printf("[%d]+  Interrupted\t%s\n", getJobCount(*jobList), current->command);
 		 } else if (WIFSIGNALED(status) && current->state == 5) {
 			printf("[%d]+  Hangup\t%s\n", getJobCount(*jobList), current->command);
+		 } else if (WIFCONTINUED(status)) {
+		 	printf("[%d]+ Running\t%s\n", getJobCount(*jobList), current->command);
+		 	addJob(jobList, createJob(current->pid, current->pgid, current->command, current->state));
 		 }
    
 		 if (prev == NULL) {
@@ -339,7 +345,7 @@ void killProcessByIdentifier(struct Job** jobList, char** identifierArray) {
     int signalFlag = 0;
 
     // Check if the identifier starts with "-SIGKILL", "-SIGSTOP", or "-SIGCONT"
-    if (strcmp(identifier, "-SIGKILL") == 0 || strcmp(identifier, "-SIGSTOP") == 0 || strcmp(identifier, "-SIGCONT") == 0 || strcmp(identifier, "-SIGINT") == 0 || strcmp(identifier, "-SIGTERM") == 0 || strcmp(identifier, "-SIGHUP") == 0) {
+    if (strcmp(identifier, "-SIGKILL") == 0 || strcmp(identifier, "-SIGSTOP") == 0 || strcmp(identifier, "-SIGTSTP") == 0 ||  strcmp(identifier, "-SIGCONT") == 0 || strcmp(identifier, "-SIGINT") == 0 || strcmp(identifier, "-SIGTERM") == 0 || strcmp(identifier, "-SIGQUIT") == 0 || strcmp(identifier, "-SIGHUP") == 0) {
         identifier = identifierArray[1];
         signalFlag = 1;
 
@@ -356,7 +362,7 @@ void killProcessByIdentifier(struct Job** jobList, char** identifierArray) {
 		            	addJob(jobList, createJob(current->pid, current->pgid, identifier, 0));
 		            	removeFromJobList(jobList, current->pid);
 		    		}
-                } else if (strcmp(identifierArray[0], "-SIGSTOP") == 0) {
+                } else if (strcmp(identifierArray[0], "-SIGSTOP") == 0 || strcmp(identifierArray[0], "-SIGTSTP") == 0) {
                     if (kill(current->pid, SIGSTOP) == 0) {
                     	addJob(jobList, createJob(current->pid, current->pgid, identifier, 1));
                     }
@@ -380,6 +386,12 @@ void killProcessByIdentifier(struct Job** jobList, char** identifierArray) {
                 		addJob(jobList, createJob(current->pid, current->pgid, identifier, 5));
                 		removeFromJobList(jobList, current->pid);
                 	} 
+             	} else if (strcmp(identifierArray[0], "-SIGQUIT") == 0) {
+                    if (kill(current->pid, SIGQUIT) == 0) {
+                    	addJob(jobList, createJob(current->pid, current->pgid, identifier, 6));
+                    	removeFromJobList(jobList, current->pid);
+                    }
+             	
              	} else {
                     	perror("kill");
                 }

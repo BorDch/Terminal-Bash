@@ -423,14 +423,13 @@ void executeCommandSequence(struct Command* cmd) {
     }
 }
 
-
 // Pipe Function
 void executePipeline(struct Command* cmd) {
     int fd[2];
-    int prev_fd = -1;
+    int prev_fd = 0;
 
     while (cmd != NULL) {
-        if (pipe(fd) == -1) {
+        if (pipe(fd) == 0) {
             perror("pipe");
             exit(1);
         }
@@ -440,7 +439,7 @@ void executePipeline(struct Command* cmd) {
             perror("fork");
             exit(1);
         } else if (pid == 0) { // Child process
-            if (prev_fd != -1) {
+            if (prev_fd != 0) {
                 if (dup2(prev_fd, STDIN_FILENO) == -1) {
                     perror("dup2");
                     exit(1);
@@ -464,7 +463,7 @@ void executePipeline(struct Command* cmd) {
         } else { // Parent process
             close(fd[1]);
 
-            if (prev_fd != -1) {
+            if (prev_fd != 0) {
                 close(prev_fd);
             }
 
@@ -544,10 +543,9 @@ void executeInBackground(struct Command* cmd, struct Job** jobList) {
 
 
 void signalHandler(int sig) { 
-}
+} 
 
-void executeDefault(struct Command* cmd, struct Job** jobList, struct History* historyList) { 
-    signal(SIGTSTP, signalHandler);
+void executeDefault(struct Command* cmd, struct Job** jobList, struct History** historyList) { 
     pid_t pid = fork();
     if (pid == -1) {
         perror("fork");
@@ -556,12 +554,13 @@ void executeDefault(struct Command* cmd, struct Job** jobList, struct History* h
         exit(EXIT_FAILURE);
     } else if (pid == 0) { 
     	signal(SIGTSTP, signalHandler);
-        //tcsetpgrp(STDIN_FILENO, getpgrp()); // Capture the terminal
+        
         execvp(cmd->words[0], cmd->words);
-        perror("execvp");
-        freeCommand(&cmd);
-        freeHistoryNode(historyList);
-        exit(EXIT_FAILURE);
+ 	perror("execvp");
+	freeCommand(&cmd);
+	clearHistory(historyList);
+       
+	exit(EXIT_FAILURE);
     } else {
         int status;
         setpgid(0, 0);
@@ -578,7 +577,7 @@ void executeDefault(struct Command* cmd, struct Job** jobList, struct History* h
             addJob(jobList, createJob(pid, pid, cmd->words[0], 1));
         } else {
             printf("\n%s: execution error\n", cmd->words[0]);
-        }
+        }   
     }
 }
 
@@ -763,16 +762,17 @@ void inputFromFile(struct Command* cmd, const char* filename) {
 }
 
 
-void executeCommand(struct Command* cmd, struct Job** jobList, int firstOperatorFlag, int secondFlag, struct History* historyList) {
+void executeCommand(struct Command* cmd, struct Job** jobList, int firstOperatorFlag, int secondFlag, struct History** historyList) {
     if (cmd == NULL) {
-        return;
+        return; 
     } 
-    
+   
     // Check if word is '#' then won't execute following commands
     if (strcmp(cmd->words[0], "#") == 0) {
     	cmd->next = NULL;
     	return;	
     }
+     
     // Check the command's flag and execute accordingly
     if ((firstOperatorFlag == 3 && secondFlag == 4) || (firstOperatorFlag == 4 && secondFlag == 3)) {
     	executeCommandSequence(cmd);
