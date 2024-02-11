@@ -79,29 +79,3 @@ void clearHistory(struct History** historyList) {
     freeHistory(*historyList);
     *historyList = NULL;
 }
-
-/*
-struct History* findCommandInHistory(struct History* historyList, char* command) {
-    struct History* current = historyList;
-    
-    while (current != NULL) {
-        if (strcmp(current->command, command) == 0) {
-            return current; // Найдено совпадение
-        }
-        current = current->next;
-    }
-    
-    return NULL; // Команда не найдена
-}
-
-void removeFromHistory(struct History** historyList, struct History* nodeToRemove) {
-    struct History* current = *historyList;
-    
-    while (current != nodeToRemove) {
-    	current = current->next;
-    }
-    
-    freeHistoryNode(&current);
-}
-
-*/
