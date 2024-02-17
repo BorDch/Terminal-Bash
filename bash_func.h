@@ -4,7 +4,34 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include "jobs.c"
+
+
+// Structure Command
+struct Command {
+    char** words;         // Command words
+    int flag;             // Operator flag (0 - default, 1 - '|', 2 - '&', 3 - '||', 4 - '&&', .....)
+    pid_t pid;
+    struct Command* next; // Next Command
+    char* filename;       // for several functions
+};
+
+
+// Structure Job
+struct Job {
+    pid_t pid;       // Process ID
+    pid_t pgid;      // Process Group ID
+    char* command;   // Command string
+    int state;       // Process state (0 - running, 1 - stopped, 2 - terminated, ...)
+    struct Command* commands; // List of commands
+    struct Job* next; // Next Job
+};
+
+
+// Structure for command history
+struct History {
+    char* command;
+    struct History* next;
+};
 
 
 // For Jobs
@@ -19,7 +46,7 @@ void bringToForeground(struct Job** jobList, char* identifier);
 void killProcessByIdentifier(struct Command* commands, struct Job** jobList, char** identifierArray);
 void resumeInBackground(struct Job** jobList, char* identifier);
 void waitProcess(struct Job** jobList, pid_t pid);
-void printJob(struct Job* job);
+void printJobs(struct Job* job);
 void printJobsWithCommands(struct Job* jobList);
 
 
@@ -51,6 +78,7 @@ void inputFromFile(struct Command* cmd, const char* filename);
 
 // Other Bash commands
 void pwd();
+void cd(const char* path);
 void echo(const char* str);
 void help();
 int isFile(const char* filename);
@@ -68,5 +96,4 @@ void clearHistory(struct History** historyList);
 // Free memory 
 void freeCommand(struct Command** cmd);
 void freeCmd(struct Command* cmd);
-void freeJob(struct Job* job);
 void clearJobs(struct Job** jobList); 

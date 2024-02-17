@@ -8,12 +8,12 @@
 
 #include "bash_func.h"
 
-int main() {
 
+int main() {
 	struct Command* commands = NULL;
 	struct Job* jobList = NULL;
 	struct History* historyList = NULL;
-
+	
 	signal(SIGINT, SIG_IGN);
 	signal(SIGTSTP, SIG_IGN);
 	signal(SIGTERM, SIG_IGN);
@@ -23,7 +23,6 @@ int main() {
 
     while (1) {
     	    updateJobList(&jobList);
-    	    
     	    pwd();
 	    
 	    char* input = characterInput();
@@ -33,8 +32,6 @@ int main() {
 	    	break;
 
 	    }
-
-	    addToHistory(&historyList, input);
 	    
 	    if (input[0] == '\0') { // If press Enter, skip and continue new iteration
 	    	free(input);
@@ -51,6 +48,8 @@ int main() {
 	    	free(input);
 	    	break;
 	    }
+	    
+	    addToHistory(&historyList, input);
 	
 	    int wordCount;
 	    char** words = splitStringWithoutSpaces(input, &wordCount);  

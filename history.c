@@ -2,13 +2,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "bash_func.h"
+
 #define MAX_HISTORY_SIZE 256
 
-// Structure for command history
-struct History {
-    char* command;
-    struct History* next;
-};
 
 // Function to create a new history node
 struct History* createHistoryNode(char* command) {

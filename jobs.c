@@ -5,18 +5,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <signal.h>
-#include "bash_func.c"
 
-
-// Structure Job
-struct Job {
-    pid_t pid;       // Process ID
-    pid_t pgid;      // Process Group ID
-    char* command;   // Command string
-    int state;       // Process state (0 - running, 1 - stopped, 2 - terminated, ...)
-    struct Command* commands; // List of commands
-    struct Job* next; // Next Job
-};
+#include "bash_func.h"
 
 
 void clearJobs(struct Job** jobList); 
@@ -215,7 +205,6 @@ void executePipeline(struct Command* cmd, struct Job** jobList) {
 }
 
 
-// ls -l | date | wc &
 // Pipeline for commands with background processes
 void PipelineBackground(struct Command* cmd, struct Job** jobList) {
     int fd[2];
@@ -420,26 +409,6 @@ void executeCommand(struct Command* cmd, struct Job** jobList, struct History** 
     }
 }
 
-/*
-// Functions for cleaning Jobs
-void freeJob(struct Job* job) {
-	if (job == NULL) {
-		return;
-	}
-	
-	printf("Job address: %p\n", job);
-	
-	if (job->command != NULL) {
-		printf("Job Command: %s\n", job->command);
-		free(job->command);
-	}
-	
-	if (job->next != NULL) {
-		free(job->next);
-	}
-	
-	free(job);
-} */
 
 void clearJobs(struct Job** jobList) {
 	struct Job* current = *jobList;

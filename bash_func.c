@@ -5,21 +5,11 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <signal.h>
-#include "history.c"
 
-// Structure Command
-struct Command {
-    char** words;         // Command words
-    int flag;             // Operator flag (0 - default, 1 - '|', 2 - '&', 3 - '||', 4 - '&&', .....)
-    pid_t pid;
-    struct Command* next; // Next Command
-    char* filename;       // for several functions
-};
+#include "bash_func.h"
 
 
 // Parser Section 
-
-
 // Function for string input
 char* characterInput() {
     int size = 10; // original size for string
@@ -603,8 +593,6 @@ void inputFromFile(struct Command* cmd, const char* filename) {
             wait(NULL);
         }
 }
-
-
 
 
 // pwd: path
